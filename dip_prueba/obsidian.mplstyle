@@ -1,0 +1,48 @@
+# --- ESTILO MATPLOTLIB: PATRÓN OBSIDIAN MÍO ---
+
+# FUENTES Y TEXTO
+font.family:      sans-serif
+font.sans-serif:  Inter, Roboto, Arial, DejaVu Sans
+#text.color:       2F3E2C
+text.color:       0
+#axes.labelcolor:  4A6741
+axes.labelcolor:  0
+axes.titlesize:   14
+axes.titleweight: normal
+# axes.titlecolor:  71964D
+axes.titlecolor:  0
+
+# EJES Y GRID
+#axes.facecolor:   FBFCFB
+axes.facecolor:   FFFFFF
+axes.edgecolor:   4A6741
+axes.linewidth:   1.0
+axes.grid:        True
+grid.color:       D1D6D0
+grid.alpha:       0.25
+grid.linestyle:   :
+
+# MARCAS (TICKS)
+# xtick.color:      4A6741
+# ytick.color:      4A6741
+xtick.color:      0
+ytick.color:      0
+xtick.direction:  out
+ytick.direction:  out
+
+# FIGURA
+figure.facecolor: FFFFFF
+figure.titlesize: 16
+figure.titleweight: bold
+
+# LÍNEAS Y CICLO DE COLOR (Paleta de Verdes Musgo y Tierra)
+# 1: Verde Musgo, 2: Verde Suave, 3: Verde Profundo, 4: Arena, 5: Oliva
+axes.prop_cycle: cycler('color', ['71964D', '8FA97A', '4A6741', 'A5A58D', '6B705C'])
+lines.linewidth: 2.0
+lines.markersize: 6
+
+# LEYENDA
+legend.frameon:       True
+legend.facecolor:     FFFFFF
+legend.edgecolor:     A5A58D
+legend.fontsize:      medium
