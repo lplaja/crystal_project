@@ -6,7 +6,7 @@ from scipy.constants import hbar, elementary_charge, eV
 import logging
 import time
 from datetime import timedelta
-from numba import njit
+from numba import njit, set_num_threads
 
 # logging.basicConfig(
 #     filename="graphene_TightBinding.log",
@@ -14,6 +14,8 @@ from numba import njit
 #     level=logging.INFO,
 #     format="%(asctime)s %(levelname)s: %(message)s",
 # )
+
+set_num_threads(8)
 
 logger = logging.getLogger(__name__)
 
