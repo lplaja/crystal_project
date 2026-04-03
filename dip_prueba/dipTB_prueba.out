@@ -1,2 +1,0 @@
-/home/lplaja/crystal_project/src/TBevolution.py:64: NumbaPerformanceWarning: np.dot() is faster on contiguous arrays, called on (Array(complex128, 2, 'F', False, aligned=True), Array(complex128, 1, 'A', False, aligned=True))
-  t[n,m]=np.dot(exp.T, tnm_vector)

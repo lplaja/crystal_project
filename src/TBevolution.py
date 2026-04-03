@@ -6,7 +6,7 @@ from scipy.constants import hbar, elementary_charge, eV
 import logging
 import time
 from datetime import timedelta
-from numba import njit, set_num_threads
+from numba import njit, set_num_threads, prange
 
 # logging.basicConfig(
 #     filename="graphene_TightBinding.log",
@@ -32,41 +32,34 @@ def _fk(kx,ky,a):
     fk=np.exp(-1j*kdota0a1/3)*(1+np.exp(1j*kdota0)+np.exp(1j*kdota1))
     return fk
 
-@njit(parallel=True)
-def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
-    n_orb=h_Rnm.shape[1]
-    n_k=len(kx)
+def precompute_R_delta(R, deltas):
+    n_orb = len(deltas)
     n_R = R.shape[0]
-
-    t=np.zeros((n_orb,n_orb,n_k), dtype=np.complex128)
+    R_delta = np.zeros((n_orb, n_orb, n_R, 3))
     for n in range(n_orb):
         for m in range(n_orb):
-            #print(f'====    {n,m=}')
-            tnm_vector=h_Rnm[:,n,m]
-            # arg_exp=np.array([1j*2*np.pi*kx*R[n,m,i_neighbor,0]+1j*2*np.pi*ky*R[n,m,i_neighbor,1]+1j*2*np.pi*kz*R[n,m,i_neighbor,2]
-            #                   for i_neighbor in range(R.shape[2])]).T # 1j*2*np.pi*kx*R[n,m,i_neighbor,0]+1j*2*np.pi*ky*R[n,m,i_neighbor,1] for u
+            R_delta[n, m] = R + deltas[m] - deltas[n]
+    return R_delta
 
-            arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
-            
-            for iR in range(n_R):
-                #print(f'\t {iR=}')
-                R_delta=R[iR]+deltas[m]-deltas[n]
-                #print(f'\t  {R[iR]=}   {deltas[m]=}  {deltas[n]=}   {R_delta=} {tnm_vector[iR]/eV=}')
-                #print(f'\t  {kx=}   {ky=}   {kz=}')
+@njit(parallel=True)
+def _t_nm(kx, ky, kz, h_Rnm_T, R_delta):
+    n_orb = h_Rnm_T.shape[0]
+    n_k = len(kx)
 
-                arg_exp[iR, :] = (
-                    1j * 2 * np.pi * kx * R_delta[0] +
-                    1j * 2 * np.pi * ky * R_delta[1] +
-                    1j * 2 * np.pi * kz * R_delta[2]
-                )
+    k = np.stack((kx, ky, kz))
+    t = np.zeros((n_orb, n_orb, n_k), dtype=np.complex128)
 
-            exp=np.exp(arg_exp)
-            t[n,m]=np.dot(exp.T, tnm_vector)
+    for n in prange(n_orb):
+        for m in range(n_orb):
+            tnm_vector = h_Rnm_T[n, m]
+            arg_exp = 1j * 2 * np.pi * (R_delta[n, m] @ k)
+            t[n, m] = tnm_vector @ np.exp(arg_exp)
+
     return t
 
 
-@njit(parallel=True)
-def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  h_Rnm, deltas, R, from_it:int, to_it:int):
+@njit(parallel=False)
+def _rk_evolveCMCP(CM, CP, kx, ky, kz, Ax, Ay, Az, dt, h_Rnm_T, R_delta, from_it, to_it):
 #def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  neighbor_hoppings, neighbor_positions, from_it:int, to_it:int, a):
 
     itmax=len(Ax)
@@ -96,7 +89,7 @@ def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  h_Rnm, deltas, R, from_it
         ktx=kx-norm_At_x
         kty=ky-norm_At_y
         ktz=kz-norm_At_z
-        tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+        tnm = _t_nm(ktx, kty, ktz, h_Rnm_T, R_delta)
         # tnm=_t_nm(np.array([ktx[100], ktx[100]]),np.array([kty[100], kty[100]]),np.array([ktz[100], ktz[100]]), neighbor_hoppings, neighbor_positions)
         # print(f'vprint in line: 92 --> {tnm[0,1][0]/eV=}')
         # print(f'vprint in line: 92 --> {type(tnm[0,1][0]/eV)=}')
@@ -109,7 +102,7 @@ def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  h_Rnm, deltas, R, from_it
         ktx=kx-norm_Atdt2_x
         kty=ky-norm_Atdt2_y
         ktz=kz-norm_Atdt2_z
-        tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+        tnm = _t_nm(ktx, kty, ktz, h_Rnm_T, R_delta)
         sumE=np.real(tnm[0,0]+tnm[1,1])
         diffE=2*tnm[0,1]
         K2M=c1*(sumE*(CM+K1M/2)+diffE*(CP+K1P/2))
@@ -121,7 +114,7 @@ def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  h_Rnm, deltas, R, from_it
         ktx=kx-norm_Atdt_x
         kty=ky-norm_Atdt_y
         ktz=kz-norm_Atdt_z
-        tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+        tnm = _t_nm(ktx, kty, ktz, h_Rnm_T, R_delta)
         sumE=np.real(tnm[0,0]+tnm[1,1])
         diffE=2*tnm[0,1]
         K4M=c1*(sumE*(CM+K3M)+diffE*(CP+K3P))
@@ -162,10 +155,11 @@ class TBevolution_CMCP:
             self.k = np.column_stack([self.k, ky, kz])    
 
         self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to eV and apply degeneracy weights
-
+        self.h_Rnm_T = np.ascontiguousarray(self.h_Rnm.transpose(1, 2, 0))  # (n_orb, n_orb, n_R)
         self.R=cr.vector_in_cart(self.crystal.R_vectors, self.crystal.direct_vectors) # coordinate of the WZ cell in cartesian
-
         self.deltas=self.crystal.deltas
+        self.R_delta = precompute_R_delta(self.R, self.deltas)
+
         self.num_wann=self.crystal.num_wann
         self.nrpts=self.crystal.nrpts
 
@@ -190,9 +184,8 @@ class TBevolution_CMCP:
         info+=f"# \n"
         return info
     
-    def tnm(self,kx,ky,kz):
-        return _t_nm(kx, ky, kz, self.h_Rnm, self.deltas, self.R)
-    
+    def tnm(self, kx, ky, kz):
+        return _t_nm(kx, ky, kz, self.h_Rnm_T, self.R_delta)    
     def phik(self,kx,ky,kz):
         tnm=self.tnm(kx,ky,kz)
         return np.angle(tnm[0,1])
@@ -226,7 +219,7 @@ class TBevolution_CMCP:
     
         Ay=self.Field.A[:,1]/self.crystal.reciprocal_lattice_unit
 
-        CM, CP=_rk_evolveCMCP(CM, CP, kx,ky,kz, Ax, Ay, Az, self.Field.dt, self.h_Rnm, self.deltas, self.R, from_it, to_it)
+        CM, CP = _rk_evolveCMCP(CM, CP, kx, ky, kz, Ax, Ay, Az, self.Field.dt, self.h_Rnm_T, self.R_delta, from_it, to_it)
         # CM, CP=_rk_evolveCMCP(CM, CP, kx,ky,kz, Ax, Ay, Az, self.Field.dt, self.neighbor_hoppings, self.neighbor_positions,
         #                       from_it, to_it, self.crystal.direct_vectors)
         return CM, CP
