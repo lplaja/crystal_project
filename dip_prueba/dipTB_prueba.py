@@ -32,7 +32,7 @@ ggr=grid.UniformCartesianGrid(2,[[-0.75/a,0.75/a],[-0.75/a,0.75/a]],[70,70], ori
 
 
 # Create the graphene crystal
-gcr=cr.crystal.from_W90_TB_file(filename='/home/lplaja/crystal_project/dip_prueba/Wannier90 data/gr1NN_tb.dat', grid=ggr, species_name='graphene1NN')
+gcr=cr.crystal.from_W90_TB_file(filename='/home/lplaja/crystal_project/dip_prueba/Wannier90 data/gr_tb.dat', grid=ggr, species_name='graphene1NN')
 
 # Create the Field
 lambda0=3000e-9
@@ -46,8 +46,19 @@ Efield=polarizedHarmonicElectricField(tt,I_W__cm2=5e10,lambda0_nm=lambda0*1e9, e
 # Create the TightBinding evolution
 gtb=TBevolution_CMCP(gcr, Efield)
 
+# import time
+# kx, ky, kz = gtb.k[:,0], gtb.k[:,1], gtb.k[:,2]
+
+# # warm-up
+# _ = gtb.tnm(kx, ky, kz)
+
+# t0 = time.perf_counter()
+# for _ in range(100):
+#     _ = gtb.tnm(kx, ky, kz)
+# print(f"_t_nm: {(time.perf_counter()-t0)/100*1000:.2f} ms")
+
 #calculate dipole
-time_dip,dipole_x,dipole_y=gtb.rk_dipole(npt=500)
+time_dip,dipole_x,dipole_y=gtb.rk_dipole(npt=350)
 
 #print(f'vprint in line: 48 --> {time_dip=}')
 
