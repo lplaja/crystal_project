@@ -52,9 +52,11 @@ def _t_nm(kx, ky, kz, h_Rnm_T, R_delta):
     for n in prange(n_orb):
         for m in range(n_orb):
             tnm_vector = h_Rnm_T[n, m]
-            arg_exp = 1j * 2 * np.pi * (R_delta[n, m] @ k)
-            t[n, m] = tnm_vector @ np.exp(arg_exp)
-
+            # arg_exp = 1j * 2 * np.pi * (R_delta[n, m] @ k)
+            # t[n, m] = tnm_vector @ np.exp(arg_exp)
+            arg_real = 2 * np.pi * (R_delta[n, m] @ k)
+            exp_vals = np.cos(arg_real) + 1j * np.sin(arg_real)
+            t[n, m] = tnm_vector @ exp_vals
     return t
 
 

@@ -28,7 +28,7 @@ a=2.46
 filter=grid.polygonfilter
 filter_args={'nsides':6, 'radius': 2/3/a}
 # ggr=grid.UniformCartesianGrid(2,[[-0.75,0.75],[-0.75,0.75]],[700,700], origin=(0.0,0), filter=filter, filter_args= filter_args)
-ggr=grid.UniformCartesianGrid(2,[[-0.75/a,0.75/a],[-0.75/a,0.75/a]],[7,7], origin=(0.0,0), filter=filter, filter_args= filter_args)
+ggr=grid.UniformCartesianGrid(2,[[-0.75/a,0.75/a],[-0.75/a,0.75/a]],[70,70], origin=(0.0,0), filter=filter, filter_args= filter_args)
 
 
 # Create the graphene crystal
@@ -46,8 +46,19 @@ Efield=polarizedHarmonicElectricField(tt,I_W__cm2=5e10,lambda0_nm=lambda0*1e9, e
 # Create the TightBinding evolution
 gtb=TBevolution_CMCP(gcr, Efield)
 
+# import time
+# kx, ky, kz = gtb.k[:,0], gtb.k[:,1], gtb.k[:,2]
+
+# # warm-up
+# _ = gtb.tnm(kx, ky, kz)
+
+# t0 = time.perf_counter()
+# for _ in range(100):
+#     _ = gtb.tnm(kx, ky, kz)
+# print(f"_t_nm: {(time.perf_counter()-t0)/100*1000:.2f} ms")
+
 #calculate dipole
-time_dip,dipole_x,dipole_y=gtb.rk_dipole(npt=500)
+time_dip,dipole_x,dipole_y=gtb.rk_dipole(npt=350)
 
 #print(f'vprint in line: 48 --> {time_dip=}')
 
