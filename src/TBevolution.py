@@ -63,7 +63,7 @@ def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
     return t
 
 
-@njit(parallel=True)
+@njit(parallel=False)
 def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  h_Rnm, deltas, R, from_it:int, to_it:int):
 #def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  neighbor_hoppings, neighbor_positions, from_it:int, to_it:int, a):
 
