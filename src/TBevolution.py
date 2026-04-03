@@ -41,7 +41,7 @@ def precompute_R_delta(R, deltas):
             R_delta[n, m] = R + deltas[m] - deltas[n]
     return R_delta
 
-@njit(parallel=True)
+@njit(parallel=False)
 def _t_nm(kx, ky, kz, h_Rnm_T, R_delta):
     n_orb = h_Rnm_T.shape[0]
     n_k = len(kx)
@@ -49,7 +49,7 @@ def _t_nm(kx, ky, kz, h_Rnm_T, R_delta):
     k = np.stack((kx, ky, kz))
     t = np.zeros((n_orb, n_orb, n_k), dtype=np.complex128)
 
-    for n in prange(n_orb):
+    for n in range(n_orb):
         for m in range(n_orb):
             tnm_vector = h_Rnm_T[n, m]
             # arg_exp = 1j * 2 * np.pi * (R_delta[n, m] @ k)
