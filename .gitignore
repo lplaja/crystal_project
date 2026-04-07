@@ -38,3 +38,6 @@ Thumbs.db
 # Secrets — NEVER commit credentials
 .env
 secrets.py
+
+# outputs
+*.txt

@@ -6,7 +6,7 @@ from scipy.constants import hbar, elementary_charge, eV
 import logging
 import time
 from datetime import timedelta
-from numba import njit, set_num_threads, prange
+from numba import njit, prange
 
 # logging.basicConfig(
 #     filename="graphene_TightBinding.log",
@@ -14,8 +14,6 @@ from numba import njit, set_num_threads, prange
 #     level=logging.INFO,
 #     format="%(asctime)s %(levelname)s: %(message)s",
 # )
-
-set_num_threads(8)
 
 logger = logging.getLogger(__name__)
 
@@ -32,36 +30,41 @@ def _fk(kx,ky,a):
     fk=np.exp(-1j*kdota0a1/3)*(1+np.exp(1j*kdota0)+np.exp(1j*kdota1))
     return fk
 
-def precompute_R_delta(R, deltas):
-    n_orb = len(deltas)
+@njit(parallel=True)
+def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
+    n_orb=h_Rnm.shape[1]
+    n_k=len(kx)
     n_R = R.shape[0]
-    R_delta = np.zeros((n_orb, n_orb, n_R, 3))
+
+    t=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
     for n in range(n_orb):
         for m in range(n_orb):
-            R_delta[n, m] = R + deltas[m] - deltas[n]
-    return R_delta
+            #print(f'====    {n,m=}')
+            tnm_vector=h_Rnm[:,n,m]
+            # arg_exp=np.array([1j*2*np.pi*kx*R[n,m,i_neighbor,0]+1j*2*np.pi*ky*R[n,m,i_neighbor,1]+1j*2*np.pi*kz*R[n,m,i_neighbor,2]
+            #                   for i_neighbor in range(R.shape[2])]).T # 1j*2*np.pi*kx*R[n,m,i_neighbor,0]+1j*2*np.pi*ky*R[n,m,i_neighbor,1] for u
 
-@njit(parallel=False)
-def _t_nm(kx, ky, kz, h_Rnm_T, R_delta):
-    n_orb = h_Rnm_T.shape[0]
-    n_k = len(kx)
+            arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
+            
+            for iR in range(n_R):
+                #print(f'\t {iR=}')
+                R_delta=R[iR]+deltas[m]-deltas[n]
+                #print(f'\t  {R[iR]=}   {deltas[m]=}  {deltas[n]=}   {R_delta=} {tnm_vector[iR]/eV=}')
+                #print(f'\t  {kx=}   {ky=}   {kz=}')
 
-    k = np.stack((kx, ky, kz))
-    t = np.zeros((n_orb, n_orb, n_k), dtype=np.complex128)
+                arg_exp[iR, :] = (
+                    1j * 2 * np.pi * kx * R_delta[0] +
+                    1j * 2 * np.pi * ky * R_delta[1] +
+                    1j * 2 * np.pi * kz * R_delta[2]
+                )
 
-    for n in range(n_orb):
-        for m in range(n_orb):
-            tnm_vector = h_Rnm_T[n, m]
-            # arg_exp = 1j * 2 * np.pi * (R_delta[n, m] @ k)
-            # t[n, m] = tnm_vector @ np.exp(arg_exp)
-            arg_real = 2 * np.pi * (R_delta[n, m] @ k)
-            exp_vals = np.cos(arg_real) + 1j * np.sin(arg_real)
-            t[n, m] = tnm_vector @ exp_vals
+            exp=np.exp(arg_exp)
+            t[n,m]=np.dot(exp.T, tnm_vector)
     return t
 
 
 @njit(parallel=False)
-def _rk_evolveCMCP(CM, CP, kx, ky, kz, Ax, Ay, Az, dt, h_Rnm_T, R_delta, from_it, to_it):
+def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  h_Rnm, deltas, R, from_it:int, to_it:int):
 #def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  neighbor_hoppings, neighbor_positions, from_it:int, to_it:int, a):
 
     itmax=len(Ax)
@@ -70,6 +73,12 @@ def _rk_evolveCMCP(CM, CP, kx, ky, kz, Ax, Ay, Az, dt, h_Rnm_T, R_delta, from_it
 
     c_qe__hbar=qe/hbar
     c1=-dt*1j/2/hbar
+
+
+    n_orb=h_Rnm.shape[1]
+    n_k=len(kx)
+    tnm=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
+    tnm_dt=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
 
     for it in range(from_it,to_it):
         norm_At_x=c_qe__hbar*Ax[it]
@@ -88,37 +97,54 @@ def _rk_evolveCMCP(CM, CP, kx, ky, kz, Ax, Ay, Az, dt, h_Rnm_T, R_delta, from_it
         norm_Atdt2_y=(norm_Atdt_y+norm_At_y)/2
         norm_Atdt2_z=(norm_Atdt_z+norm_At_z)/2
 
-        ktx=kx-norm_At_x
-        kty=ky-norm_At_y
-        ktz=kz-norm_At_z
-        tnm = _t_nm(ktx, kty, ktz, h_Rnm_T, R_delta)
-        # tnm=_t_nm(np.array([ktx[100], ktx[100]]),np.array([kty[100], kty[100]]),np.array([ktz[100], ktz[100]]), neighbor_hoppings, neighbor_positions)
-        # print(f'vprint in line: 92 --> {tnm[0,1][0]/eV=}')
-        # print(f'vprint in line: 92 --> {type(tnm[0,1][0]/eV)=}')
-        # print(f'vprint in line: 93 --> {2.97*_fk(ktx[100],kty[100],a)=}')
+        if it==from_it:
+            ktx=kx-norm_At_x
+            kty=ky-norm_At_y
+            ktz=kz-norm_At_z
+            tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+            ktx=kx-norm_Atdt_x
+            kty=ky-norm_Atdt_y
+            ktz=kz-norm_Atdt_z
+            tnm_dt=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+            tnm_dt2=(tnm_dt+tnm)/2
+        else:
+            ktx=kx-norm_At_x
+            kty=ky-norm_At_y
+            ktz=kz-norm_At_z
+            tnm=tnm_dt
+            ktx=kx-norm_Atdt_x
+            kty=ky-norm_Atdt_y
+            ktz=kz-norm_Atdt_z
+            tnm_dt=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+            tnm_dt2=(tnm_dt+tnm)/2        
+
+        # ktx=kx-norm_At_x
+        # kty=ky-norm_At_y
+        # ktz=kz-norm_At_z
+        # tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
         sumE=np.real(tnm[0,0]+tnm[1,1])
         diffE=2*tnm[0,1]
         K1M=c1*(sumE*CM+diffE*CP)
         K1P=c1*(sumE*CP+np.conjugate(diffE)*CM)
 
-        ktx=kx-norm_Atdt2_x
-        kty=ky-norm_Atdt2_y
-        ktz=kz-norm_Atdt2_z
-        tnm = _t_nm(ktx, kty, ktz, h_Rnm_T, R_delta)
-        sumE=np.real(tnm[0,0]+tnm[1,1])
-        diffE=2*tnm[0,1]
+        # ktx=kx-norm_Atdt2_x
+        # kty=ky-norm_Atdt2_y
+        # ktz=kz-norm_Atdt2_z
+        # tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+        sumE=np.real(tnm_dt2[0,0]+tnm_dt2[1,1])
+        diffE=2*tnm_dt2[0,1]
         K2M=c1*(sumE*(CM+K1M/2)+diffE*(CP+K1P/2))
         K2P=c1*(sumE*(CP+K1P/2)+np.conjugate(diffE)*(CM+K1M/2))
                 
         K3M=c1*(sumE*(CM+K2M/2)+diffE*(CP+K2P/2))
         K3P=c1*(sumE*(CP+K2P/2)+np.conjugate(diffE)*(CM+K2M/2))
 
-        ktx=kx-norm_Atdt_x
-        kty=ky-norm_Atdt_y
-        ktz=kz-norm_Atdt_z
-        tnm = _t_nm(ktx, kty, ktz, h_Rnm_T, R_delta)
-        sumE=np.real(tnm[0,0]+tnm[1,1])
-        diffE=2*tnm[0,1]
+        # ktx=kx-norm_Atdt_x
+        # kty=ky-norm_Atdt_y
+        # ktz=kz-norm_Atdt_z
+        # tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+        sumE=np.real(tnm_dt[0,0]+tnm_dt[1,1])
+        diffE=2*tnm_dt[0,1]
         K4M=c1*(sumE*(CM+K3M)+diffE*(CP+K3P))
         K4P=c1*(sumE*(CP+K3P)+np.conjugate(diffE)*(CM+K3M))
 
@@ -157,11 +183,10 @@ class TBevolution_CMCP:
             self.k = np.column_stack([self.k, ky, kz])    
 
         self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to eV and apply degeneracy weights
-        self.h_Rnm_T = np.ascontiguousarray(self.h_Rnm.transpose(1, 2, 0))  # (n_orb, n_orb, n_R)
-        self.R=cr.vector_in_cart(self.crystal.R_vectors, self.crystal.direct_vectors) # coordinate of the WZ cell in cartesian
-        self.deltas=self.crystal.deltas
-        self.R_delta = precompute_R_delta(self.R, self.deltas)
 
+        self.R=cr.vector_in_cart(self.crystal.R_vectors, self.crystal.direct_vectors) # coordinate of the WZ cell in cartesian
+
+        self.deltas=self.crystal.deltas
         self.num_wann=self.crystal.num_wann
         self.nrpts=self.crystal.nrpts
 
@@ -186,8 +211,9 @@ class TBevolution_CMCP:
         info+=f"# \n"
         return info
     
-    def tnm(self, kx, ky, kz):
-        return _t_nm(kx, ky, kz, self.h_Rnm_T, self.R_delta)    
+    def tnm(self,kx,ky,kz):
+        return _t_nm(kx, ky, kz, self.h_Rnm, self.deltas, self.R)
+    
     def phik(self,kx,ky,kz):
         tnm=self.tnm(kx,ky,kz)
         return np.angle(tnm[0,1])
@@ -221,7 +247,7 @@ class TBevolution_CMCP:
     
         Ay=self.Field.A[:,1]/self.crystal.reciprocal_lattice_unit
 
-        CM, CP = _rk_evolveCMCP(CM, CP, kx, ky, kz, Ax, Ay, Az, self.Field.dt, self.h_Rnm_T, self.R_delta, from_it, to_it)
+        CM, CP=_rk_evolveCMCP(CM, CP, kx,ky,kz, Ax, Ay, Az, self.Field.dt, self.h_Rnm, self.deltas, self.R, from_it, to_it)
         # CM, CP=_rk_evolveCMCP(CM, CP, kx,ky,kz, Ax, Ay, Az, self.Field.dt, self.neighbor_hoppings, self.neighbor_positions,
         #                       from_it, to_it, self.crystal.direct_vectors)
         return CM, CP
