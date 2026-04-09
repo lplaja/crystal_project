@@ -186,9 +186,11 @@ class crystal:
     h_Rnm: np.ndarray # (nrpts, num_wann, num_wann) hopping matrix for the integration over the Brillouin zone
     r_Rnm: np.ndarray # (nrpts, num_wann, num_wann, 3) position matrix for the integration over the Brillouin zone     
     deltas: np.ndarray # (num_wann, 3) position of the orbitals
+    max_hopping: float
+    threshold_hopping: float
 
     @classmethod
-    def from_W90_TB_file(cls, filename:str, grid: Grid, species_name:str=None):
+    def from_W90_TB_file(cls, filename:str, grid: Grid, species_name:str=None, threshold_hopping:float=1):
         if not os.path.isfile(filename):
             raise FileNotFoundError(f"Wannier90 file not found: {filename}")
         if filename[-6:].lower() != 'tb.dat':
@@ -196,6 +198,9 @@ class crystal:
 
         with open(filename, 'r') as f:
             lines = f.readlines()
+
+        logging.info(f"Read Wannier90 TB file: {filename}")
+
 
         name=species_name
         direct_lattice_unit = 1.0e-10
@@ -264,6 +269,34 @@ class crystal:
         deltas = np.zeros((num_wann, 3), dtype=np.float64)
         for iwann in range(num_wann):
             deltas[iwann]=np.real(r_Rnm[ir0,iwann,iwann])
+
+        logging.info(f"Found {num_wann} orbitals in each of {nrpts} R-points")
+
+        # max hopping
+        _h_Rnm = h_Rnm.copy()  
+        for n in range(num_wann):
+            h_Rnm[:,n,n] = 0   #exclude diagonals
+
+        max_hopping = np.max(np.abs(_h_Rnm))
+        logging.info(f"Max. inter-site hopping={max_hopping} (absolute value)")
+
+        if threshold_hopping<1:
+            logging.info(f"Filtering hoppings above {threshold_hopping*100}% --> threshold={threshold_hopping*max_hopping} (absolute value)")
+            
+            ir_to_keep=[ir for ir in range(nrpts) if np.abs(_h_Rnm[ir]).max() > threshold_hopping*max_hopping]
+            
+            h_Rnm=h_Rnm[ir_to_keep]
+            r_Rnm=r_Rnm[ir_to_keep]
+            R_vectors=R_vectors[ir_to_keep]
+            deg_weights=deg_weights[ir_to_keep]
+
+            nrpts = h_Rnm.shape[0]  
+
+            logging.info(f"Keeping {nrpts} R-points")
+
+            for ir in range(nrpts):
+                if np.all(R_vectors[ir] == 0):
+                    ir0=ir  # index of the central wigner-seitz cell
  
         return cls(
             name=name,
@@ -281,5 +314,7 @@ class crystal:
             h_Rnm= h_Rnm,
             r_Rnm= r_Rnm,
             deltas= deltas,
+            max_hopping=max_hopping,
+            threshold_hopping=threshold_hopping,
         )
     

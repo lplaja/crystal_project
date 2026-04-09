@@ -28,12 +28,13 @@ a=2.46
 filter=grid.polygonfilter
 filter_args={'nsides':6, 'radius': 2/3/a}
 # ggr=grid.UniformCartesianGrid(2,[[-0.75,0.75],[-0.75,0.75]],[700,700], origin=(0.0,0), filter=filter, filter_args= filter_args)
-ggr=grid.UniformCartesianGrid(2,[[-0.75/a,0.75/a],[-0.75/a,0.75/a]],[500,500], origin=(0.0,0), filter=filter, filter_args= filter_args)
+ggr=grid.UniformCartesianGrid(2,[[-0.75/a,0.75/a],[-0.75/a,0.75/a]],[10,10], origin=(0.0,0), filter=filter, filter_args= filter_args)
 
 
 # Create the graphene crystal
 #gcr=cr.crystal.from_W90_TB_file(filename='/home/lplaja/crystal_project/dip_prueba/Wannier90 data/gr1NN_tb.dat', grid=ggr, species_name='graphene1NN')
-gcr=cr.crystal.from_W90_TB_file(filename='/home/lplaja/crystal_project/dip_prueba/Wannier90 data/gr_tb.dat', grid=ggr, species_name='graphene')
+gcr=cr.crystal.from_W90_TB_file(filename='/home/lplaja/crystal_project/dip_prueba/Wannier90 data/gr_tb.dat', 
+                                grid=ggr, species_name='graphene', threshold_hopping=0.01)
 
 # Create the Field
 lambda0=3000e-9
