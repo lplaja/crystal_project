@@ -41,3 +41,8 @@ secrets.py
 
 # outputs
 *.txt
+*.out
+*.log
+
+# Wannier data
+/calculations/Wannier90\ data
