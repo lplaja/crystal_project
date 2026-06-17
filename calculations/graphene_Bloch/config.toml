@@ -12,10 +12,10 @@
     dim = 2     # direct lattice dimension
 
 [BZ] # if crystal.dim=1 only kx will be used, if 2D the kx and ky
-    nkx = 500
+    nkx = 50
     kx_min = -0.3048780488  # -0.75/a
     kx_max =  0.3048780488  #  0.75/a
-    nky = 500    
+    nky = 50    
     ky_min = -0.3048780488  # -0.75/a
     ky_max =  0.3048780488  #  0.75/a
     nkz = 1

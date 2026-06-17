@@ -89,6 +89,64 @@ def _eigen_hermitian(t_nm):
     eigvecs = np.moveaxis(eigvecs, 0, -1)        # (N_orb, N_orb, N_k)
     return energies, eigvecs
 
+
+@njit(parallel=True)
+def _rk_evolveCMCP(CM, CP, kx,ky, Ax, Ay, dt, a, gamma0, from_it:int, to_it:int):
+
+    itmax=len(Ax)
+
+    to_it=min(to_it, itmax)
+
+    c_qe__hbar=qe/hbar
+    c1=-dt*1j/2/hbar
+
+    for it in range(from_it,to_it):
+        norm_At_x=c_qe__hbar*Ax[it]
+        norm_At_y=c_qe__hbar*Ay[it]
+        if it==itmax:
+            norm_Atdt_x=c_qe__hbar*(2*Ax[itmax]-Ax[itmax-1]) # extrapolation
+            norm_Atdt_y=c_qe__hbar*(2*Ay[itmax]-Ay[itmax-1]) # extrapolation
+        else:
+            norm_Atdt_x=c_qe__hbar*Ax[it+1]
+            norm_Atdt_y=c_qe__hbar*Ay[it+1]
+            
+        norm_Atdt2_x=(norm_Atdt_x+norm_At_x)/2
+        norm_Atdt2_y=(norm_Atdt_y+norm_At_y)/2
+
+        ktx=kx-norm_At_x
+        kty=ky-norm_At_y
+
+        g0fk=_fk(ktx,kty,a)*gamma0
+        sumE=0
+        diffE=-2*g0fk
+        K1M=c1*(sumE*CM+diffE*CP)
+        K1P=c1*(sumE*CP+np.conjugate(diffE)*CM)
+
+        ktx=kx-norm_Atdt2_x
+        kty=ky-norm_Atdt2_y
+        g0fk=_fk(ktx,kty,a)*gamma0
+        sumE=0
+        diffE=-2*g0fk
+        K2M=c1*(sumE*(CM+K1M/2)+diffE*(CP+K1P/2))
+        K2P=c1*(sumE*(CP+K1P/2)+np.conjugate(diffE)*(CM+K1M/2))
+                
+        K3M=c1*(sumE*(CM+K2M/2)+diffE*(CP+K2P/2))
+        K3P=c1*(sumE*(CP+K2P/2)+np.conjugate(diffE)*(CM+K2M/2))
+
+        ktx=kx-norm_Atdt_x
+        kty=ky-norm_Atdt_y
+        g0fk=_fk(ktx,kty,a)*gamma0
+        sumE=0
+        diffE=-2*g0fk
+        K4M=c1*(sumE*(CM+K3M)+diffE*(CP+K3P))
+        K4P=c1*(sumE*(CP+K3P)+np.conjugate(diffE)*(CM+K3M))
+
+        CM+=K1M/6+K2M/3+K3M/3+K4M/6
+        CP+=K1P/6+K2P/3+K3P/3+K4P/6
+
+    return CM, CP
+
+
 @njit(parallel=True)
 def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, deltas, R, from_it:int, to_it:int):
 
