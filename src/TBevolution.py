@@ -43,7 +43,8 @@ def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
             arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
             
             for iR in range(n_R):
-                R_delta=R[iR]+deltas[m]-deltas[n]
+                #R_delta=R[iR]+deltas[m]-deltas[n]
+                R_delta=R[iR]
                 arg_exp[iR, :] = (
                     1j * 2 * np.pi * kx * R_delta[0] +
                     1j * 2 * np.pi * ky * R_delta[1] +
@@ -147,7 +148,7 @@ def _rk_evolveCMCP(CM, CP, kx,ky, Ax, Ay, dt, a, gamma0, from_it:int, to_it:int)
     return CM, CP
 
 
-@njit(parallel=True)
+#@njit(parallel=True)
 def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, deltas, R, from_it:int, to_it:int):
 
     itmax=len(Ax)
@@ -166,9 +167,9 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
         norm_At_x=c_qe__hbar*Ax[it]
         norm_At_y=c_qe__hbar*Ay[it]
         norm_At_z=c_qe__hbar*Az[it]
-        qFt_x=qe*Ex
-        qFt_y=qe*Ey
-        qFt_z=qe*Ez
+        qFt_x=qe*Ex[it]
+        qFt_y=qe*Ey[it]
+        qFt_z=qe*Ez[it]
         if it==itmax:
             norm_Atdt_x=c_qe__hbar*(2*Ax[itmax]-Ax[itmax-1]) # extrapolation
             norm_Atdt_y=c_qe__hbar*(2*Ay[itmax]-Ay[itmax-1]) # extrapolation
@@ -216,14 +217,15 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
             tnm_dt2=(tnm_dt+tnm)/2        
             rnm_dt2=(rnm_dt+rnm)/2
 
-        Mnm=tnm-qFt_x*rnm[:,0]-qFt_y*rnm[:,1]-qFt_z*rnm[:,2]
+        Mnm=tnm-qFt_x*rnm[...,0]-qFt_y*rnm[...,1]-qFt_z*rnm[...,2]
+        print(f"{rnm.shape=}, {tnm.shape=}, {Mnm.shape=}")
         K1=c1*(np.einsum('nmi,mi->ni', Mnm, CB, optimize=True))
 
-        Mnm=tnm_dt2-qFtdt2_x*rnm_dt2[:,0]-qFtdt2_y*rnm_dt2[:,1]-qFtdt2_z*rnm_dt2[:,2]
+        Mnm=tnm_dt2-qFtdt2_x*rnm_dt2[...,0]-qFtdt2_y*rnm_dt2[...,1]-qFtdt2_z*rnm_dt2[...,2]
         K2=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K1/2, optimize=True))
         K3=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K2/2, optimize=True))
   
-        Mnm=tnm_dt-qFtdt_x*rnm_dt[:,0]-qFtdt_y*rnm_dt[:,1]-qFtdt_z*rnm_dt[:,2]
+        Mnm=tnm_dt-qFtdt_x*rnm_dt[...,0]-qFtdt_y*rnm_dt[...,1]-qFtdt_z*rnm_dt[...,2]
         K4=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K3, optimize=True))
   
         CB+=K1/6+K2/3+K3/3+K4/6
@@ -441,14 +443,6 @@ class TBevolution_Bloch:
 
         _,CB=self.bands(kx,ky,kz)
         self.CB=CB
-        _,CB=self.bands(kx+epsk,ky,kz)
-        self.CB_px=CB
-        _,CB=self.bands(kx-epsk,ky,kz)
-        self.CB_mx=CB
-        _,CB=self.bands(kx,ky+epsk,kz)
-        self.CB_py=CB
-        _,CB=self.bands(kx,ky-epsk,kz)
-        self.CB_my=CB
 
     def __repr__(self):
         info=f"# {self.__class__.__name__}:  id= {id(self):x} \n"
@@ -464,21 +458,6 @@ class TBevolution_Bloch:
     def rnm(self,kx,ky,kz):
         return _r_nm(kx, ky, kz, self.r_Rnm, self.R)
     
-    def grad_phik_x(self,kx,ky,kz):
-        tnm=self.tnm(kx-epsk,ky,kz)
-        phi_k_m=np.angle(tnm[0,1])
-        tnm=self.tnm(kx+epsk,ky,kz)
-        phi_k_p=np.angle(tnm[0,1])
-        return (phi_k_p-phi_k_m)/(2*epsk)/self.crystal.reciprocal_lattice_unit
-    
-    def grad_phik_y(self,kx,ky,kz):
-        
-        tnm=self.tnm(kx,ky-epsk,kz)
-        phi_k_m=np.angle(tnm[0,1])
-        tnm=self.tnm(kx,ky+epsk,kz)
-        phi_k_p=np.angle(tnm[0,1])
-        return (phi_k_p-phi_k_m)/(2*epsk)/self.crystal.reciprocal_lattice_unit
-        
     def rk_evolve(self,CB, kx, ky, kz, from_it:int, to_it:int):
         if to_it>len(self.Field.A[:,0])-1:
             to_it=len(self.Field.A[:,0])-1
@@ -504,6 +483,42 @@ class TBevolution_Bloch:
         return CB
     
     def rk_dipole(self, npt:int):
+        start_time = time.time()
+
+        imax=len(self.Field.t)+1
+        istep=imax//npt
+
+        CB=self.CB.copy()
+        dk=epsk*self.crystal.reciprocal_lattice_unit
+
+        time_dip=np.zeros(npt,dtype=np.float64)
+        dipole_x=np.zeros(npt,dtype=np.complex128)
+        dipole_y=np.zeros(npt,dtype=np.complex128)
+
+
+        c_qe__hbar=qe/hbar
+
+        kx=self.k[:,0]
+        ky=self.k[:,1]
+        kz=self.k[:,2]
+
+        for it in range(0,imax,istep):
+            if it+istep>=imax:
+                break
+            elapsed = time.time() - start_time
+            if it!=0:
+                remaining=elapsed/it*(imax-it)
+                formatted_elapsed = str(timedelta(seconds=elapsed))
+                formatted_remaining = str(timedelta(seconds=remaining))
+                logging.info(f"elap. time {formatted_elapsed} \t rem. time {formatted_remaining} step= {it//istep}/{imax//istep}")
+
+            CB=self.rk_evolve(CB, kx, ky, kz, it, it+istep)
+
+
+
+            return time_dip, dipole_x, dipole_y
+    
+    def rk_dipole_velocity(self, npt:int):
         
         start_time = time.time()
 

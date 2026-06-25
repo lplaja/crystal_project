@@ -90,3 +90,14 @@ def test_TBevolution_Bloch_bands():
         assert np.allclose(en[:,1], np.array([0, 0])*eV)  # K
         assert np.allclose(en[:,2], np.array([-2.888, 2.888])*eV)  # M
 
+        # G = un vector primitivo de la red recíproca (en las mismas unidades que k)
+        b = TBev.crystal.reciprocal_vectors      # lista de b_1, b_2, b_3 (sin 2π)
+        G = np.array(b[0])                        # primer vector primitivo
+
+        kx = np.array([0.13]); ky = np.array([0.27]); kz = np.array([0.0])
+        t_k  = TBev.tnm(kx,      ky,      kz,)
+        t_kG = TBev.tnm(kx+G[0], ky+G[1], kz+G[2])
+  
+        err = np.max(np.abs(t_kG - t_k))
+        assert err < 1e-12*eV, f"t(k) no es periódico en G: max|Δ|={err}"
+
