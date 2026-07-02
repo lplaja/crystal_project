@@ -481,43 +481,7 @@ class TBevolution_Bloch:
         CB=_rk_evolveCB(CB, kx,ky,kz, Ax, Ay, Az, Ex, Ey, Ez, self.Field.dt, self.h_Rnm, self.r_Rnm, self.deltas, self.R, from_it, to_it)
 
         return CB
-    
-    def rk_dipole(self, npt:int):
-        start_time = time.time()
 
-        imax=len(self.Field.t)+1
-        istep=imax//npt
-
-        CB=self.CB.copy()
-        dk=epsk*self.crystal.reciprocal_lattice_unit
-
-        time_dip=np.zeros(npt,dtype=np.float64)
-        dipole_x=np.zeros(npt,dtype=np.complex128)
-        dipole_y=np.zeros(npt,dtype=np.complex128)
-
-
-        c_qe__hbar=qe/hbar
-
-        kx=self.k[:,0]
-        ky=self.k[:,1]
-        kz=self.k[:,2]
-
-        for it in range(0,imax,istep):
-            if it+istep>=imax:
-                break
-            elapsed = time.time() - start_time
-            if it!=0:
-                remaining=elapsed/it*(imax-it)
-                formatted_elapsed = str(timedelta(seconds=elapsed))
-                formatted_remaining = str(timedelta(seconds=remaining))
-                logging.info(f"elap. time {formatted_elapsed} \t rem. time {formatted_remaining} step= {it//istep}/{imax//istep}")
-
-            CB=self.rk_evolve(CB, kx, ky, kz, it, it+istep)
-
-
-
-            return time_dip, dipole_x, dipole_y
-    
     def rk_dipole_velocity(self, npt:int):
         
         start_time = time.time()
