@@ -7,12 +7,19 @@ import grid as grid
 import Field as Field
 import TBevolution as TBevolution
 
+A_LATT = 2.46   # Å, constante de red del grafeno (gr1NN_tb.dat)
+
+def hexagonal_BZ_grid(n=200):
+    """Malla cuyo filtro deja UNA zona de Brillouin de grafeno (k en 1/Å, sin 2π)."""
+    R = 2/(3*A_LATT)                    # |Γ-K| = 0.271 1/Å
+    L = 1.1*R
+    dx = 2*L/n
+    return grid.UniformCartesianGrid(2, [[-L, L], [-L, L]], [n, n], origin=(dx/2, dx/2),
+                                     filter=grid.polygonfilter, filter_args={'nsides': 6, 'radius': R})
 
 def test_TBevolution_Bloch_parameters():
         # Create an hexagonal grid
-        filter=grid.polygonfilter
-        filter_args={'nsides':6, 'radius': 2/3}
-        ggr=grid.UniformCartesianGrid(2,[[-0.75,0.75],[-0.75,0.75]],[500,500], origin=(0.0,0), filter=filter, filter_args= filter_args)
+        ggr = hexagonal_BZ_grid()
 
         # Create the graphene crystal
 
@@ -53,9 +60,7 @@ def test_TBevolution_Bloch_parameters():
 
 def test_TBevolution_Bloch_bands():
         # Create an hexagonal grid
-        filter=grid.polygonfilter
-        filter_args={'nsides':6, 'radius': 2/3}
-        ggr=grid.UniformCartesianGrid(2,[[-0.75,0.75],[-0.75,0.75]],[500,500], origin=(0.0,0), filter=filter, filter_args= filter_args)
+        ggr = hexagonal_BZ_grid()
 
         # Create the graphene crystal
 
@@ -106,9 +111,7 @@ def test_TBevolution_Bloch_bands():
 def test_grad_t_nm_matches_finite_difference():
 
        # Create an hexagonal grid
-        filter=grid.polygonfilter
-        filter_args={'nsides':6, 'radius': 2/3}
-        ggr=grid.UniformCartesianGrid(2,[[-0.75,0.75],[-0.75,0.75]],[500,500], origin=(0.0,0), filter=filter, filter_args= filter_args)
+        ggr = hexagonal_BZ_grid()
 
         # Create the graphene crystal
 

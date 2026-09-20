@@ -7,6 +7,7 @@ import logging
 import time
 from datetime import timedelta
 from numba import njit, prange
+import warnings
 
 # logging.basicConfig(
 #     filename="graphene_TightBinding.log",
@@ -458,6 +459,13 @@ class TBevolution_Bloch:
                 raise ValueError("s_direction must be [0,0,1], orthogonal to the xy plane")
             # Añadir columna de ceros para kz
             kz = np.zeros((self.k.shape[0], 1), dtype=np.float64)
+            b1 = np.array(self.crystal.reciprocal_vectors[0])[:2]
+            b2 = np.array(self.crystal.reciprocal_vectors[1])[:2]
+            A_BZ = abs(b1[0]*b2[1] - b1[1]*b2[0])
+            if abs(self.V/A_BZ - 1) > 0.1:
+                warnings.warn(f"La malla k cubre {self.V/A_BZ:.2f} zonas de Brillouin (sum dV = {self.V:.4g}, "
+                              f"|b1 x b2| = {A_BZ:.4g} 1/A^2): las corrientes saldran multiplicadas por ese factor.")
+
             self.k = np.column_stack([self.k, kz])
         elif self.crystal.grid.ndim == 1:
             if Field.s_direction[0]!= 0:

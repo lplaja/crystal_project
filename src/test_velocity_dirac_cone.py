@@ -57,10 +57,11 @@ TOL_EVOL = 1e-8          # evolucion campo nulo (error relativo)
 @lru_cache(maxsize=None)
 def get_system():
     """Cristal real de grafeno + TBevolution con campo nulo (se construye una vez)."""
-    filter_ = gr.polygonfilter
-    filter_args = {'nsides': 6, 'radius': 2/3}
-    ggr = gr.UniformCartesianGrid(2, [[-0.75, 0.75], [-0.75, 0.75]], [20, 20],
-                                  origin=(0.0, 0), filter=filter_, filter_args=filter_args)
+    R = 2/(3*2.46)                       # |Γ-K| en 1/Å (sin 2π): cubre UNA zona de Brillouin
+    L = 1.1*R
+    dx = 2*L/20
+    ggr = gr.UniformCartesianGrid(2, [[-L, L], [-L, L]], [20, 20], origin=(dx/2, dx/2),
+                                  filter=gr.polygonfilter, filter_args={'nsides': 6, 'radius': R})
     TBcr = cr.crystal.from_W90_TB_file(filename=W90_FILE, grid=ggr,
                                        species_name='graphene', threshold_hopping=0)
 
