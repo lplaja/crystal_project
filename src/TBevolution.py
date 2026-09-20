@@ -200,7 +200,7 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
     to_it=min(to_it, itmax)
 
     c_qe__hbar=qe/hbar
-    c1=-dt*1j/2/hbar
+    c1=-dt*1j/hbar
 
     n_orb=h_Rnm.shape[1]
     n_k=len(kx)
@@ -551,27 +551,28 @@ class TBevolution_Bloch:
         v_k = self._velocity_k(CB, kxt, kyt, kzt)
         return np.einsum('ka,k->a', v_k, self.dV)
 
-        def rk_dipole_velocity(self, npt: int):
-            imax = len(self.Field.t)
-            istep = imax//npt
+    def rk_dipole_velocity(self, npt: int):
+        
+        imax = len(self.Field.t)
+        istep = imax//npt
 
-            CBw = self.CB.copy()
-            kx, ky, kz = self.k[:, 0], self.k[:, 1], self.k[:, 2]
+        CBw = self.CB.copy()
+        kx, ky, kz = self.k[:, 0], self.k[:, 1], self.k[:, 2]
 
-            time_dip = np.zeros(npt, dtype=np.float64)
-            v = np.zeros((npt, 3), dtype=np.complex128)  # v[:,0]=vx, v[:,1]=vy, v[:,2]=vz
+        time_dip = np.zeros(npt, dtype=np.float64)
+        v = np.zeros((npt, 3), dtype=np.complex128)  # v[:,0]=vx, v[:,1]=vy, v[:,2]=vz
 
-            time_dip[0] = self.Field.t[0, 0]
-            v[0] = self._velocity(CBw, *self._kappa(0))
+        time_dip[0] = self.Field.t[0, 0]
+        v[0] = self._velocity(CBw, *self._kappa(0))
 
-            for it in range(0, imax, istep):
-                if it+istep >= imax:
-                    break
+        for it in range(0, imax, istep):
+            if it+istep >= imax:
+                break
 
-                CBw = self.rk_evolve(CBw, kx, ky, kz, it, it+istep)
+            CBw = self.rk_evolve(CBw, kx, ky, kz, it, it+istep)
 
-                idx = min(it//istep+1, npt-1)
-                time_dip[idx] = self.Field.t[it+istep, 0]
-                v[idx] = self._velocity(CBw, *self._kappa(it+istep))
+            idx = min(it//istep+1, npt-1)
+            time_dip[idx] = self.Field.t[it+istep, 0]
+            v[idx] = self._velocity(CBw, *self._kappa(it+istep))
 
-            return time_dip, v[:, 0], v[:, 1], v[:, 2]
+        return time_dip, v[:, 0], v[:, 1], v[:, 2]
