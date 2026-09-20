@@ -4,6 +4,7 @@ from matplotlib.animation import FuncAnimation
 from grid import UniformCartesianGrid, FonGrid
 from scipy.constants import epsilon_0, mu_0, nano, femto, micro, centi
 from scipy.constants import c as c_light
+from scipy.integrate import cumulative_trapezoid
 
 ### HELPERS
 def lambda2w(lambda0):
@@ -205,11 +206,11 @@ class polarizedHarmonicElectricField(PolarizedHarmonicField):
 
 
         self.E=self.envelope[:,np.newaxis]*self.carrier
-        self.A=-np.cumsum(self.E, axis=0)*self.dt
-
+        self.A=-cumulative_trapezoid(self.E, dx=self.dt, axis=0, initial=0)
         # print(f'vprint in line: 46 in Field --> {max(self.E[:,0])=}')
         # print(f'vprint in line: 46 in Field --> {max(self.E[:,1])=}')
     def __repr__(self):
+        
         info=f"# {self.__class__.__name__}: id= {id(self):x} \n"
         info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t phi={self.phi/np.pi:.4e} π rad \n"
         info+=f"# \t env={self.env}  \t env_parameters={self.env_parameters}\n"
