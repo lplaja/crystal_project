@@ -80,15 +80,17 @@ def test_TBevolution_Bloch_bands():
 
         TBev=TBevolution.TBevolution_Bloch(TBcr, Efield)
 
-        a=1.42
+        a=2.46
         kx=np.array([0,2/3/a*np.sqrt(3)/2, 2/3/a*np.sqrt(3)/2] )
         ky=np.array([0,2/3/a*1/2,0])
         kz=np.array([0,0,0])
         en, eig=TBev.bands(kx,ky,kz)
 
-        assert np.allclose(en[:,0], np.array([-8.6639742, 8.6639742])*eV)  # Gamma
-        assert np.allclose(en[:,1], np.array([0, 0])*eV)  # K
-        assert np.allclose(en[:,2], np.array([-2.888, 2.888])*eV)  # M
+        print(en[:,0])
+
+        assert np.allclose(en[:,0]/eV, np.array([-8.6639742, 8.6639742]), atol=1e-6) # Gamma
+        assert np.allclose(en[:,1]/eV, np.array([0, 0] ), atol=1e-6) # K
+        assert np.allclose(en[:,2]/eV, np.array([-2.888, 2.888]), atol=1e-6)   # M
 
         # G = un vector primitivo de la red recíproca (en las mismas unidades que k)
         b = TBev.crystal.reciprocal_vectors      # lista de b_1, b_2, b_3 (sin 2π)
@@ -101,3 +103,53 @@ def test_TBevolution_Bloch_bands():
         err = np.max(np.abs(t_kG - t_k))
         assert err < 1e-12*eV, f"t(k) no es periódico en G: max|Δ|={err}"
 
+def test_grad_t_nm_matches_finite_difference():
+
+       # Create an hexagonal grid
+        filter=grid.polygonfilter
+        filter_args={'nsides':6, 'radius': 2/3}
+        ggr=grid.UniformCartesianGrid(2,[[-0.75,0.75],[-0.75,0.75]],[500,500], origin=(0.0,0), filter=filter, filter_args= filter_args)
+
+        # Create the graphene crystal
+
+        TBcr=cr.crystal.from_W90_TB_file(filename='/home/lplaja/crystal_project/calculations/Wannier90 data/gr1NN_tb.dat' , 
+                                                                        grid=ggr, species_name='graphene', threshold_hopping=0)
+        
+        lambda0=3000*1e-9
+        T0=Field.lambda2T(lambda0)
+        tini=0*T0
+        tfin=8*T0
+        limits=[tini,tfin]
+        nptx=32768
+        tt=grid.UniformCartesianGrid(1,limits=limits, nptx=nptx)
+
+        fieldcallable=Field.polarizedHarmonicElectricField        
+        I_W__cm2=5e10
+        env_params={'start' : 0, 'end' : 1, 'ton'   : 0.5, 'toff'  : 0.5 } # in units of the time grid
+        phi_rad=-1.5707963267948966
+        chi_rad=1.5707963267948966
+        ellip=0
+        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, phi_rad=phi_rad, chi_rad=chi_rad,ellip=ellip)
+
+        TBev=TBevolution.TBevolution_Bloch(TBcr, Efield)
+
+        # --- puntos de prueba: genéricos, lejos de simetrías donde grad=0 ---
+        a = 1.42
+        kx = np.array([0.13, 0.27, 0.05]) / a
+        ky = np.array([0.31, 0.08, 0.19]) / a
+        kz = np.array([0.0, 0.0, 0.0])
+
+        dk = 1e-6
+        for dim, (dkx, dky, dkz) in enumerate([(dk,0,0), (0,dk,0), (0,0,dk)]):
+                t_plus  = TBev.tnm(kx+dkx, ky+dky, kz+dkz)
+                t_minus = TBev.tnm(kx-dkx, ky-dky, kz-dkz)
+                grad_num = (t_plus - t_minus) / (2*dk)
+                grad_ana = TBev.grad_tnm(dim, kx, ky, kz)
+
+                print(f"dim={dim}: grad_num={grad_num}")
+                print(f"dim={dim}: grad_ana={grad_ana}")
+
+                if np.max(np.abs(grad_ana)) > 1e-30:
+                        err = np.max(np.abs(grad_num - grad_ana)) / np.max(np.abs(grad_ana))
+                        print(f"{err=}")
+                        assert err < 1e-6, f"dim={dim}: error relativo {err}"

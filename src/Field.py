@@ -105,11 +105,11 @@ class PolarizedHarmonicField(HarmonicField):
 
         self.Phi, self.delta_phi=self.ChiEllip2PhiDeltaPhi(self.chi, self.ellip)
 
-        print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.chi=}')
-        print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.ellip=}')
-        print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.theta=}')
-        print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.Phi=}')
-        print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.delta_phi=}')
+        # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.chi=}')
+        # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.ellip=}')
+        # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.theta=}')
+        # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.Phi=}')
+        # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.delta_phi=}')
         self.E=None # These will be a 3D with E_parallel, E_perp and E_axial as columns.
         self.A=None # These will be a 3D with A_parallel, A_perp and A_axial as columns.
 
@@ -182,19 +182,19 @@ class polarizedHarmonicElectricField(PolarizedHarmonicField):
         Phi=self.Phi
         delta_phi=self.delta_phi
 
-        print(f'vprint in line: 180 in Field --> {phi_rad=}')
-        print(f'vprint in line: 180 in Field --> {chi_rad=}')
-        print(f'vprint in line: 180 in Field --> {theta_rad=}')
-        print(f'vprint in line: 180 in Field --> {Phi=}')
-        print(f'vprint in line: 180 in Field --> {delta_phi=}')
+        # print(f'vprint in line: 180 in Field --> {phi_rad=}')
+        # print(f'vprint in line: 180 in Field --> {chi_rad=}')
+        # print(f'vprint in line: 180 in Field --> {theta_rad=}')
+        # print(f'vprint in line: 180 in Field --> {Phi=}')
+        # print(f'vprint in line: 180 in Field --> {delta_phi=}')
 
 
-        self.E0_parallel=self.E0*np.cos(Phi)*np.exp(-1j*delta_phi)*np.cos(theta_rad)
+        self.E0_parallel=self.E0*np.cos(Phi)*np.cos(theta_rad)
         self.E0_perp=self.E0*np.sin(Phi)*np.exp(-1j*delta_phi)*np.cos(theta_rad)
-        self.E0_axial=self.E0*np.exp(-1j*delta_phi)*np.sin(theta_rad)
-        print(f'vprint in line: 183 in Field --> {self.E0_parallel=}')
-        print(f'vprint in line: 183 in Field --> {self.E0_perp=}')
-        print(f'vprint in line: 183 in Field --> {self.E0_axial=}')
+        self.E0_axial=self.E0*np.sin(theta_rad)
+        # print(f'vprint in line: 183 in Field --> {self.E0_parallel=}')
+        # print(f'vprint in line: 183 in Field --> {self.E0_perp=}')
+        # print(f'vprint in line: 183 in Field --> {self.E0_axial=}')
         
         temp_phase=np.exp(1j*self.w0*time_s.x[:,0]+1j*self.phi)
         E_parallel=np.real(self.E0_parallel*temp_phase)
@@ -207,8 +207,8 @@ class polarizedHarmonicElectricField(PolarizedHarmonicField):
         self.E=self.envelope[:,np.newaxis]*self.carrier
         self.A=-np.cumsum(self.E, axis=0)*self.dt
 
-        print(f'vprint in line: 46 in Field --> {max(self.E[:,0])=}')
-        print(f'vprint in line: 46 in Field --> {max(self.E[:,1])=}')
+        # print(f'vprint in line: 46 in Field --> {max(self.E[:,0])=}')
+        # print(f'vprint in line: 46 in Field --> {max(self.E[:,1])=}')
     def __repr__(self):
         info=f"# {self.__class__.__name__}: id= {id(self):x} \n"
         info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t phi={self.phi/np.pi:.4e} π rad \n"
@@ -277,27 +277,29 @@ class polarizedHarmonicPotentialVectorField(PolarizedHarmonicField):
         Phi=self.Phi
         delta_phi=self.delta_phi
 
-        self.A0_parallel=self.A0*np.cos(Phi)
-        self.A0_perp=self.A0*np.sin(Phi)*np.exp(-1j*delta_phi)
+        self.A0_parallel=self.A0*np.cos(Phi)*np.cos(self.theta)
+        self.A0_perp=self.A0*np.sin(Phi)*np.exp(-1j*delta_phi)*np.cos(self.theta)
+        self.A0_axial=self.A0*np.sin(self.theta)
 
         temp_phase=np.exp(1j*self.w0*time_s.x[:,0]+1j*self.phi)
         A_parallel=np.real(self.A0_parallel*temp_phase)
-        A_perp=np.real(self.A0_perp*temp_phase)   
+        A_perp=np.real(self.A0_perp*temp_phase)
+        A_axial=np.real(self.A0_axial*temp_phase)
 
-        self.carrier=np.column_stack((A_parallel, A_perp))
+        self.carrier=np.column_stack((A_parallel, A_perp, A_axial))
 
         self.A=self.envelope[:,np.newaxis]*self.carrier
         self.E=-np.gradient(self.A, self.dt, axis=0)
 
-        def __repr__(self):
-            info=f"# {self.__class__.__name__}: id= {id(self):x} \n"
-            info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t phi={self.phi/np.pi:.4e} π rad \n"
-            info+=f"# \t env={self.env}  \t env_parameters={self.env_parameters}\n"
-            info+=f"# \t chi={self.chi/np.pi:.3e} π rad  \t ellip={self.ellip:.2e} \n"
-            info+=f"# \t Phi={self.Phi/np.pi:.3e} π rad  \t delta_phi={self.delta_phi/np.pi:.3e} π rad  \n"
-            info+=f"# \t theta={self.theta/np.pi:.3e} π rad  \t s_direction={self.s_direction}\n"
-            info+=f"# \n"
-            return info
+    def __repr__(self):
+        info=f"# {self.__class__.__name__}: id= {id(self):x} \n"
+        info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t phi={self.phi/np.pi:.4e} π rad \n"
+        info+=f"# \t env={self.env}  \t env_parameters={self.env_parameters}\n"
+        info+=f"# \t chi={self.chi/np.pi:.3e} π rad  \t ellip={self.ellip:.2e} \n"
+        info+=f"# \t Phi={self.Phi/np.pi:.3e} π rad  \t delta_phi={self.delta_phi/np.pi:.3e} π rad  \n"
+        info+=f"# \t theta={self.theta/np.pi:.3e} π rad  \t s_direction={self.s_direction}\n"
+        info+=f"# \n"
+        return info
             
 
 

@@ -21,6 +21,21 @@ qe=-elementary_charge
 
 epsk=1e-13 # small interval to compute the derivative
 
+def polarization_frame(s_direction):
+    """Base ortonormal dextrogira (p, q, s) del campo.
+    s = direccion de propagacion (normalizada).
+    p = eje x proyectado perpendicular a s (normalizado)  -> componente 'paralela'.
+    q = s x p                                              -> componente 'perpendicular'.
+    Las columnas de Field.E y Field.A son (paralela, perpendicular, axial) = (p, q, s)."""
+    s = np.asarray(s_direction, dtype=float)
+    s = s/np.linalg.norm(s)
+    p = np.array([1.0, 0.0, 0.0]) - s[0]*s
+    norm_p = np.linalg.norm(p)
+    if norm_p < 1e-12:
+        raise ValueError("s_direction paralela a x: no se puede definir la direccion paralela p")
+    p = p/norm_p
+    q = np.cross(s, p)
+    return p, q, s
 
 # This function is necessary only with the purpose of testing fuction _t_nm
 def _fk(kx,ky,a):
@@ -30,7 +45,7 @@ def _fk(kx,ky,a):
     fk=np.exp(-1j*kdota0a1/3)*(1+np.exp(1j*kdota0)+np.exp(1j*kdota1))
     return fk
 
-@njit(parallel=True)
+#@njit(parallel=False)
 def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
     n_orb=h_Rnm.shape[1]
     n_k=len(kx)
@@ -55,6 +70,33 @@ def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
             t[n,m]=np.dot(exp.T, tnm_vector)
     return t
 
+@njit(parallel=False)
+def _grad_t_nm(dim,kx,ky,kz,h_Rnm, deltas, R):  # coputes the gradient in the direction dim
+    n_orb=h_Rnm.shape[1]
+    n_k=len(kx)
+    n_R = R.shape[0]
+
+    grad_t=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
+    for n in range(n_orb):
+        for m in range(n_orb):
+            tnm_vector=h_Rnm[:,n,m]
+
+            arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
+            
+            for iR in range(n_R):
+                #R_delta=R[iR]+deltas[m]-deltas[n]
+                R_delta=R[iR]
+                arg_exp[iR, :] = (
+                    1j * 2 * np.pi * kx * R_delta[0] +
+                    1j * 2 * np.pi * ky * R_delta[1] +
+                    1j * 2 * np.pi * kz * R_delta[2]
+                )
+
+            exp=np.exp(arg_exp)
+            grad_t[n,m]=1j*2*np.pi*np.dot(exp.T, R[:,dim]*tnm_vector)
+    return grad_t
+
+@njit(parallel=False)
 def _r_nm(kx,ky,kz,r_Rnm, R):
     n_orb=r_Rnm.shape[1]
     n_k=len(kx)
@@ -82,7 +124,9 @@ def _r_nm(kx,ky,kz,r_Rnm, R):
             r[n,m,:,2]=np.dot(exp.T, rnm_z_vector)
     return r
 
+#@njit(parallel=True)
 def _eigen_hermitian(t_nm):
+    
     t_nm = np.moveaxis(t_nm, -1, 0)          # (N_k, N_orb, N_orb)
     energies, eigvecs = np.linalg.eigh(t_nm)
     # energies: (N_k, N_orb), eigvecs: (N_k, N_orb, N_orb)
@@ -91,7 +135,7 @@ def _eigen_hermitian(t_nm):
     return energies, eigvecs
 
 
-@njit(parallel=True)
+#@njit(parallel=True)
 def _rk_evolveCMCP(CM, CP, kx,ky, Ax, Ay, dt, a, gamma0, from_it:int, to_it:int):
 
     itmax=len(Ax)
@@ -148,7 +192,7 @@ def _rk_evolveCMCP(CM, CP, kx,ky, Ax, Ay, dt, a, gamma0, from_it:int, to_it:int)
     return CM, CP
 
 
-#@njit(parallel=True)
+#@njit(parallel=False)
 def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, deltas, R, from_it:int, to_it:int):
 
     itmax=len(Ax)
@@ -218,7 +262,6 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
             rnm_dt2=(rnm_dt+rnm)/2
 
         Mnm=tnm-qFt_x*rnm[...,0]-qFt_y*rnm[...,1]-qFt_z*rnm[...,2]
-        print(f"{rnm.shape=}, {tnm.shape=}, {Mnm.shape=}")
         K1=c1*(np.einsum('nmi,mi->ni', Mnm, CB, optimize=True))
 
         Mnm=tnm_dt2-qFtdt2_x*rnm_dt2[...,0]-qFtdt2_y*rnm_dt2[...,1]-qFtdt2_z*rnm_dt2[...,2]
@@ -425,7 +468,7 @@ class TBevolution_Bloch:
             self.k = np.column_stack([self.k, ky, kz])    
 
         self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to eV and apply degeneracy weights
-        self.r_Rnm=self.crystal.r_Rnm
+        self.r_Rnm=self.crystal.r_Rnm* self.crystal.direct_lattice_unit               # longitud: Å → m
 
         self.R=cr.vector_in_cart(self.crystal.R_vectors, self.crystal.direct_vectors) # coordinate of the WZ cell in cartesian
 
@@ -442,7 +485,7 @@ class TBevolution_Bloch:
         # lower band amplitudes. CB has the coeficients for the orbitals in each column
 
         _,CB=self.bands(kx,ky,kz)
-        self.CB=CB
+        self.CB=CB[:,0,:]  # banda de menor energia (eigh ordena ascendente): toda la poblacion en la banda de valencia
 
     def __repr__(self):
         info=f"# {self.__class__.__name__}:  id= {id(self):x} \n"
@@ -455,94 +498,80 @@ class TBevolution_Bloch:
     def tnm(self,kx,ky,kz):
         return _t_nm(kx, ky, kz, self.h_Rnm, self.deltas, self.R)
     
+    def grad_tnm(self,dim,kx,ky,kz):  
+        return _grad_t_nm(dim,kx,ky,kz,self.h_Rnm, self.deltas, self.R)# coputes the gradient in the direction dim
+
     def rnm(self,kx,ky,kz):
         return _r_nm(kx, ky, kz, self.r_Rnm, self.R)
+
+    def _field_components(self):
+        """Componentes cartesianas (x,y,z) del potencial vector A [dividido por
+        reciprocal_lattice_unit] y del campo electrico E [SI], en todos los instantes."""
+        if self.Field.A.ndim != 2 or self.Field.A.shape[1] != 3:
+            raise ValueError("Field.A y Field.E deben tener 3 columnas (paralela, perp., axial)")
+        p, q, s = polarization_frame(self.Field.s_direction)
+
+        def to_cartesian(F):                   # F: (n_t, 3) = (paralela, perp., axial)
+            return F[:, 0, None]*p + F[:, 1, None]*q + F[:, 2, None]*s
+
+        A = to_cartesian(self.Field.A)/self.crystal.reciprocal_lattice_unit
+        E = to_cartesian(self.Field.E)
+        return A[:, 0], A[:, 1], A[:, 2], E[:, 0], E[:, 1], E[:, 2]
     
     def rk_evolve(self,CB, kx, ky, kz, from_it:int, to_it:int):
         if to_it>len(self.Field.A[:,0])-1:
             to_it=len(self.Field.A[:,0])-1
 
-        # Assume that the parallel direction is in the plane x,z and perp in the direction y
-        Ax=self.Field.A[:,0]/self.crystal.reciprocal_lattice_unit*self.Field.s_direction[2]
-        Ex=self.Field.E[:,0]/self.crystal.reciprocal_lattice_unit*self.Field.s_direction[2]
-        sinus=np.sqrt(1-self.Field.s_direction[2]**2)
-        Az=self.Field.A[:,0]/self.crystal.reciprocal_lattice_unit*sinus
-        Ez=self.Field.E[:,0]/self.crystal.reciprocal_lattice_unit*sinus
-
-        ## add the axial part
-        Ax+=self.Field.A[:,2]/self.crystal.reciprocal_lattice_unit*sinus
-        Ex+=self.Field.E[:,2]/self.crystal.reciprocal_lattice_unit*sinus
-        Az+=self.Field.A[:,2]/self.crystal.reciprocal_lattice_unit*self.Field.s_direction[2]
-        Ez+=self.Field.E[:,2]/self.crystal.reciprocal_lattice_unit*self.Field.s_direction[2]
-    
-        Ay=self.Field.A[:,1]/self.crystal.reciprocal_lattice_unit
-        Ey=self.Field.E[:,1]/self.crystal.reciprocal_lattice_unit
+        Ax, Ay, Az, Ex, Ey, Ez = self._field_components()
 
         CB=_rk_evolveCB(CB, kx,ky,kz, Ax, Ay, Az, Ex, Ey, Ez, self.Field.dt, self.h_Rnm, self.r_Rnm, self.deltas, self.R, from_it, to_it)
 
         return CB
 
-    def rk_dipole_velocity(self, npt:int):
-        
-        start_time = time.time()
+    def _kappa(self, it):
+        """kappa(t) = k - (qe/hbar) A(t), en el indice de tiempo 'it'."""
+        kx, ky, kz = self.k[:, 0], self.k[:, 1], self.k[:, 2]
+        Ax, Ay, Az, _, _, _ = self._field_components()
+        c_qe__hbar = qe/hbar
+        return kx - c_qe__hbar*Ax[it], ky - c_qe__hbar*Ay[it], kz - c_qe__hbar*Az[it]
 
-        imax=len(self.Field.t)+1
-        istep=imax//npt
+    def _velocity_k(self, CB, kxt, kyt, kzt):
+        """Velocidad por k, (n_k, 3), en m/s. Sin peso dV ni espín."""
+        h = self.tnm(kxt, kyt, kzt)
+        r = self.rnm(kxt, kyt, kzt)
+        gradh = np.stack([self.grad_tnm(dim, kxt, kyt, kzt) for dim in range(3)], axis=-1)
+        gradh = gradh / self.crystal.reciprocal_lattice_unit
+        commutator = np.einsum('mlk,lnka->mnka', h, r) - np.einsum('mlka,lnk->mnka', r, h)
+        bracket = commutator - 1j*gradh
+        per_k = np.einsum('mk,mnka,nk->ka', np.conj(CB), bracket, CB)
+        return 1j/hbar * per_k
 
-        Cvw=self.Cv.copy()
-        Ccw=self.Cc.copy()
-        Cv_px=self.Cv_px.copy()
-        Cc_px=self.Cc_px.copy()
-        Cv_mx=self.Cv_mx.copy()
-        Cc_mx=self.Cc_mx.copy()
-        Cv_py=self.Cv_py.copy()
-        Cc_py=self.Cc_py.copy()
-        Cv_my=self.Cv_my.copy()
-        Cc_my=self.Cc_my.copy()
-        dk=epsk*self.crystal.reciprocal_lattice_unit
+    def _velocity(self, CB, kxt, kyt, kzt):
+        """<v> = sum_k dV_k v_k, (3,). Sin espín."""
+        v_k = self._velocity_k(CB, kxt, kyt, kzt)
+        return np.einsum('ka,k->a', v_k, self.dV)
 
-        time_dip=np.zeros(npt,dtype=np.float64)
-        dipole_x=np.zeros(npt,dtype=np.complex128)
-        dipole_y=np.zeros(npt,dtype=np.complex128)
+        def rk_dipole_velocity(self, npt: int):
+            imax = len(self.Field.t)
+            istep = imax//npt
 
+            CBw = self.CB.copy()
+            kx, ky, kz = self.k[:, 0], self.k[:, 1], self.k[:, 2]
 
-        gradCv_x=(Cv_px-Cv_mx)/(2*dk)
-        gradCc_x=(Cc_px-Cc_mx)/(2*dk)
-        gradCv_y=(Cv_py-Cv_my)/(2*dk)
-        gradCc_y=(Cc_py-Cc_my)/(2*dk)
+            time_dip = np.zeros(npt, dtype=np.float64)
+            v = np.zeros((npt, 3), dtype=np.complex128)  # v[:,0]=vx, v[:,1]=vy, v[:,2]=vz
 
-        dipole_x[0]=1j*qe/2*np.sum((np.conj(CMw)*gradCM_x+np.conj(CPw)*gradCP_x)*self.dV)
-        dipole_y[0]=1j*qe/2*np.sum((np.conj(CMw)*gradCM_y+np.conj(CPw)*gradCP_y)*self.dV)
+            time_dip[0] = self.Field.t[0, 0]
+            v[0] = self._velocity(CBw, *self._kappa(0))
 
-        c_qe__hbar=qe/hbar
+            for it in range(0, imax, istep):
+                if it+istep >= imax:
+                    break
 
-        kx=self.k[:,0]
-        ky=self.k[:,1]
-        kz=self.k[:,2]
+                CBw = self.rk_evolve(CBw, kx, ky, kz, it, it+istep)
 
-        for it in range(0,imax,istep):
-            if it+istep>=imax:
-                break
-            elapsed = time.time() - start_time
-            if it!=0:
-                remaining=elapsed/it*(imax-it)
-                formatted_elapsed = str(timedelta(seconds=elapsed))
-                formatted_remaining = str(timedelta(seconds=remaining))
-                logging.info(f"elap. time {formatted_elapsed} \t rem. time {formatted_remaining} step= {it//istep}/{imax//istep}")
+                idx = min(it//istep+1, npt-1)
+                time_dip[idx] = self.Field.t[it+istep, 0]
+                v[idx] = self._velocity(CBw, *self._kappa(it+istep))
 
-            CMw, CPw=self.rk_evolve(CMw, CPw, kx, ky, kz, it, it+istep)
-            CM_px, CP_px=self.rk_evolve(CM_px, CP_px, kx+epsk, ky, kz, it, it+istep)
-            CM_mx, CP_mx=self.rk_evolve(CM_mx, CP_mx, kx-epsk, ky, kz, it, it+istep)
-            CM_py, CP_py=self.rk_evolve(CM_py, CP_py, kx, ky+epsk, kz, it, it+istep)
-            CM_my, CP_my=self.rk_evolve(CM_my, CP_my, kx, ky-epsk, kz, it, it+istep)
-
-            gradCM_x=(CM_px-CM_mx)/(2*dk)
-            gradCP_x=(CP_px-CP_mx)/(2*dk)
-            gradCM_y=(CM_py-CM_my)/(2*dk)
-            gradCP_y=(CP_py-CP_my)/(2*dk)
-
-            time_dip[min(it//istep+1, len(dipole_x)-1)]=self.Field.t[it+istep,0]
-            dipole_x[min(it//istep+1, len(dipole_x)-1)]=1j*qe/2*np.sum((np.conj(CMw)*gradCM_x+np.conj(CPw)*gradCP_x)*self.dV)
-            dipole_y[min(it//istep+1, len(dipole_x)-1)]=1j*qe/2*np.sum((np.conj(CMw)*gradCM_y+np.conj(CPw)*gradCP_y)*self.dV)
-        
-        return time_dip, dipole_x, dipole_y      
+            return time_dip, v[:, 0], v[:, 1], v[:, 2]
