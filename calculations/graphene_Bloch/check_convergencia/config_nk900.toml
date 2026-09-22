@@ -1,0 +1,63 @@
+# Configuration file for a tigh-binding calculation
+
+[calculation] 
+    ID='prueba'
+    type='TBevolution_Bloch'
+
+[crystal]
+    name = 'graphene'
+    W90filename = '../Wannier90 data/gr1NN_tb.dat'
+    threshold_hopping = 0
+    a = 2.46    # WS cell length in Angstrom
+    dim = 2     # direct lattice dimension
+
+[BZ] # if crystal.dim=1 only kx will be used, if 2D the kx and ky
+    nkx = 900
+    kx_min = -0.3048780488  # -0.75/a
+    kx_max =  0.3048780488  #  0.75/a
+    nky = 900    
+    ky_min = -0.3048780488  # -0.75/a
+    ky_max =  0.3048780488  #  0.75/a
+    nkz = 1
+    kz_min = 0.0  
+    kz_max = 0.0
+
+[BZ.filter]
+    type = 'polygonfilter'
+
+[BZ.filter.args]
+    nsides = 6
+    radius = 0.27100271  # 2/3/a
+
+[Field]
+    type ='polarizedHarmonicElectricField'
+    I_W__cm2 = 5e10 # intensity
+    lambda = 3000  # wavelength in nm
+    phi = -1.5707963267948966 # -pi/2
+    chi =  1.5707963267948966 # pi/2
+    ellip = 0
+
+[Field.env]
+    type = 'env_sin2'
+
+[Field.env.args]
+    start = 0   # in units of the time grid
+    end   = 1   # in units of the time grid
+    ton   = 0.5 # in units of the time grid
+    toff  = 0.5 # in units of the time grid
+
+[time]
+    tini = 0
+    tfin = 8      # in units of the field periode
+    nt = 32768
+
+[evolver]
+    # type = 'TBevolution_CMCP'
+    type = 'TBevolution_Bloch'
+
+[evolver.calculation]
+    type = 'dipole_velocity'
+
+[evolver.calculation.args]
+    nt = 1024  # evolver.calculation.args.nt/time.nt must be integer
+    

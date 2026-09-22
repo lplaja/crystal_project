@@ -7,6 +7,7 @@ import logging
 import time
 from datetime import timedelta
 from numba import njit, prange
+import warnings
 
 # logging.basicConfig(
 #     filename="graphene_TightBinding.log",
@@ -21,6 +22,21 @@ qe=-elementary_charge
 
 epsk=1e-13 # small interval to compute the derivative
 
+def polarization_frame(s_direction):
+    """Base ortonormal dextrogira (p, q, s) del campo.
+    s = direccion de propagacion (normalizada).
+    p = eje x proyectado perpendicular a s (normalizado)  -> componente 'paralela'.
+    q = s x p                                              -> componente 'perpendicular'.
+    Las columnas de Field.E y Field.A son (paralela, perpendicular, axial) = (p, q, s)."""
+    s = np.asarray(s_direction, dtype=float)
+    s = s/np.linalg.norm(s)
+    p = np.array([1.0, 0.0, 0.0]) - s[0]*s
+    norm_p = np.linalg.norm(p)
+    if norm_p < 1e-12:
+        raise ValueError("s_direction paralela a x: no se puede definir la direccion paralela p")
+    p = p/norm_p
+    q = np.cross(s, p)
+    return p, q, s
 
 # This function is necessary only with the purpose of testing fuction _t_nm
 def _fk(kx,ky,a):
@@ -30,7 +46,7 @@ def _fk(kx,ky,a):
     fk=np.exp(-1j*kdota0a1/3)*(1+np.exp(1j*kdota0)+np.exp(1j*kdota1))
     return fk
 
-@njit(parallel=True)
+#@njit(parallel=False)
 def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
     n_orb=h_Rnm.shape[1]
     n_k=len(kx)
@@ -39,19 +55,12 @@ def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
     t=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
     for n in range(n_orb):
         for m in range(n_orb):
-            #print(f'====    {n,m=}')
             tnm_vector=h_Rnm[:,n,m]
-            # arg_exp=np.array([1j*2*np.pi*kx*R[n,m,i_neighbor,0]+1j*2*np.pi*ky*R[n,m,i_neighbor,1]+1j*2*np.pi*kz*R[n,m,i_neighbor,2]
-            #                   for i_neighbor in range(R.shape[2])]).T # 1j*2*np.pi*kx*R[n,m,i_neighbor,0]+1j*2*np.pi*ky*R[n,m,i_neighbor,1] for u
-
             arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
             
             for iR in range(n_R):
-                #print(f'\t {iR=}')
-                R_delta=R[iR]+deltas[m]-deltas[n]
-                #print(f'\t  {R[iR]=}   {deltas[m]=}  {deltas[n]=}   {R_delta=} {tnm_vector[iR]/eV=}')
-                #print(f'\t  {kx=}   {ky=}   {kz=}')
-
+                #R_delta=R[iR]+deltas[m]-deltas[n]
+                R_delta=R[iR]
                 arg_exp[iR, :] = (
                     1j * 2 * np.pi * kx * R_delta[0] +
                     1j * 2 * np.pi * ky * R_delta[1] +
@@ -62,10 +71,73 @@ def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
             t[n,m]=np.dot(exp.T, tnm_vector)
     return t
 
+@njit(parallel=False)
+def _grad_t_nm(dim,kx,ky,kz,h_Rnm, deltas, R):  # coputes the gradient in the direction dim
+    n_orb=h_Rnm.shape[1]
+    n_k=len(kx)
+    n_R = R.shape[0]
+
+    grad_t=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
+    for n in range(n_orb):
+        for m in range(n_orb):
+            tnm_vector=h_Rnm[:,n,m]
+
+            arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
+            
+            for iR in range(n_R):
+                #R_delta=R[iR]+deltas[m]-deltas[n]
+                R_delta=R[iR]
+                arg_exp[iR, :] = (
+                    1j * 2 * np.pi * kx * R_delta[0] +
+                    1j * 2 * np.pi * ky * R_delta[1] +
+                    1j * 2 * np.pi * kz * R_delta[2]
+                )
+
+            exp=np.exp(arg_exp)
+            grad_t[n,m]=1j*2*np.pi*np.dot(exp.T, R[:,dim]*tnm_vector)
+    return grad_t
 
 @njit(parallel=False)
-def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  h_Rnm, deltas, R, from_it:int, to_it:int):
-#def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  neighbor_hoppings, neighbor_positions, from_it:int, to_it:int, a):
+def _r_nm(kx,ky,kz,r_Rnm, R):
+    n_orb=r_Rnm.shape[1]
+    n_k=len(kx)
+    n_R = R.shape[0]
+
+    r=np.empty((n_orb,n_orb,n_k,3), dtype=np.complex128)
+    for n in range(n_orb):
+        for m in range(n_orb):
+            rnm_x_vector=r_Rnm[:,n,m,0]
+            rnm_y_vector=r_Rnm[:,n,m,1]
+            rnm_z_vector=r_Rnm[:,n,m,2]
+            arg_exp= np.zeros((n_R, n_k), dtype=np.complex128)
+            
+            for iR in range(n_R):
+                R_delta=R[iR]
+                arg_exp[iR, :] = (
+                    1j * 2 * np.pi * kx * R_delta[0] +
+                    1j * 2 * np.pi * ky * R_delta[1] +
+                    1j * 2 * np.pi * kz * R_delta[2]
+                )
+
+            exp=np.exp(arg_exp)
+            r[n,m,:,0]=np.dot(exp.T, rnm_x_vector)
+            r[n,m,:,1]=np.dot(exp.T, rnm_y_vector)
+            r[n,m,:,2]=np.dot(exp.T, rnm_z_vector)
+    return r
+
+#@njit(parallel=True)
+def _eigen_hermitian(t_nm):
+    
+    t_nm = np.moveaxis(t_nm, -1, 0)          # (N_k, N_orb, N_orb)
+    energies, eigvecs = np.linalg.eigh(t_nm)
+    # energies: (N_k, N_orb), eigvecs: (N_k, N_orb, N_orb)
+    energies = np.moveaxis(energies, 0, -1)      # (N_orb, N_k)
+    eigvecs = np.moveaxis(eigvecs, 0, -1)        # (N_orb, N_orb, N_k)
+    return energies, eigvecs
+
+
+#@njit(parallel=True)
+def _rk_evolveCMCP(CM, CP, kx,ky, Ax, Ay, dt, a, gamma0, from_it:int, to_it:int):
 
     itmax=len(Ax)
 
@@ -74,6 +146,62 @@ def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  h_Rnm, deltas, R, from_it
     c_qe__hbar=qe/hbar
     c1=-dt*1j/2/hbar
 
+    for it in range(from_it,to_it):
+        norm_At_x=c_qe__hbar*Ax[it]
+        norm_At_y=c_qe__hbar*Ay[it]
+        if it==itmax:
+            norm_Atdt_x=c_qe__hbar*(2*Ax[itmax]-Ax[itmax-1]) # extrapolation
+            norm_Atdt_y=c_qe__hbar*(2*Ay[itmax]-Ay[itmax-1]) # extrapolation
+        else:
+            norm_Atdt_x=c_qe__hbar*Ax[it+1]
+            norm_Atdt_y=c_qe__hbar*Ay[it+1]
+            
+        norm_Atdt2_x=(norm_Atdt_x+norm_At_x)/2
+        norm_Atdt2_y=(norm_Atdt_y+norm_At_y)/2
+
+        ktx=kx-norm_At_x
+        kty=ky-norm_At_y
+
+        g0fk=_fk(ktx,kty,a)*gamma0
+        sumE=0
+        diffE=-2*g0fk
+        K1M=c1*(sumE*CM+diffE*CP)
+        K1P=c1*(sumE*CP+np.conjugate(diffE)*CM)
+
+        ktx=kx-norm_Atdt2_x
+        kty=ky-norm_Atdt2_y
+        g0fk=_fk(ktx,kty,a)*gamma0
+        sumE=0
+        diffE=-2*g0fk
+        K2M=c1*(sumE*(CM+K1M/2)+diffE*(CP+K1P/2))
+        K2P=c1*(sumE*(CP+K1P/2)+np.conjugate(diffE)*(CM+K1M/2))
+                
+        K3M=c1*(sumE*(CM+K2M/2)+diffE*(CP+K2P/2))
+        K3P=c1*(sumE*(CP+K2P/2)+np.conjugate(diffE)*(CM+K2M/2))
+
+        ktx=kx-norm_Atdt_x
+        kty=ky-norm_Atdt_y
+        g0fk=_fk(ktx,kty,a)*gamma0
+        sumE=0
+        diffE=-2*g0fk
+        K4M=c1*(sumE*(CM+K3M)+diffE*(CP+K3P))
+        K4P=c1*(sumE*(CP+K3P)+np.conjugate(diffE)*(CM+K3M))
+
+        CM+=K1M/6+K2M/3+K3M/3+K4M/6
+        CP+=K1P/6+K2P/3+K3P/3+K4P/6
+
+    return CM, CP
+
+
+#@njit(parallel=False)
+def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, deltas, R, from_it:int, to_it:int):
+
+    itmax=len(Ax)
+
+    to_it=min(to_it, itmax)
+
+    c_qe__hbar=qe/hbar
+    c1=-dt*1j/hbar
 
     n_orb=h_Rnm.shape[1]
     n_k=len(kx)
@@ -84,74 +212,69 @@ def _rk_evolveCMCP(CM, CP, kx,ky, kz, Ax, Ay, Az, dt,  h_Rnm, deltas, R, from_it
         norm_At_x=c_qe__hbar*Ax[it]
         norm_At_y=c_qe__hbar*Ay[it]
         norm_At_z=c_qe__hbar*Az[it]
+        qFt_x=qe*Ex[it]
+        qFt_y=qe*Ey[it]
+        qFt_z=qe*Ez[it]
         if it==itmax:
             norm_Atdt_x=c_qe__hbar*(2*Ax[itmax]-Ax[itmax-1]) # extrapolation
             norm_Atdt_y=c_qe__hbar*(2*Ay[itmax]-Ay[itmax-1]) # extrapolation
             norm_Atdt_z=c_qe__hbar*(2*Az[itmax]-Az[itmax-1]) # extrapolation
+            qFtdt_x=qe*(2*Ex[itmax]-Ex[itmax-1]) # extrapolation
+            qFtdt_y=qe*(2*Ey[itmax]-Ey[itmax-1]) # extrapolation
+            qFtdt_z=qe*(2*Ez[itmax]-Ez[itmax-1]) # extrapolation
         else:
             norm_Atdt_x=c_qe__hbar*Ax[it+1]
             norm_Atdt_y=c_qe__hbar*Ay[it+1]
             norm_Atdt_z=c_qe__hbar*Az[it+1]
+            qFtdt_x=qe*Ex[it+1]
+            qFtdt_y=qe*Ey[it+1]
+            qFtdt_z=qe*Ez[it+1]
             
         norm_Atdt2_x=(norm_Atdt_x+norm_At_x)/2
         norm_Atdt2_y=(norm_Atdt_y+norm_At_y)/2
         norm_Atdt2_z=(norm_Atdt_z+norm_At_z)/2
+
+        qFtdt2_x=(qFtdt_x+qFt_x)/2
+        qFtdt2_y=(qFtdt_y+qFt_y)/2
+        qFtdt2_z=(qFtdt_z+qFt_z)/2
 
         if it==from_it:
             ktx=kx-norm_At_x
             kty=ky-norm_At_y
             ktz=kz-norm_At_z
             tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+            rnm=_r_nm(ktx,kty,ktz, r_Rnm, R)
             ktx=kx-norm_Atdt_x
             kty=ky-norm_Atdt_y
             ktz=kz-norm_Atdt_z
             tnm_dt=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+            rnm_dt=_r_nm(ktx,kty,ktz, r_Rnm, R)
             tnm_dt2=(tnm_dt+tnm)/2
+            rnm_dt2=(rnm_dt+rnm)/2
         else:
-            ktx=kx-norm_At_x
-            kty=ky-norm_At_y
-            ktz=kz-norm_At_z
             tnm=tnm_dt
+            rnm=rnm_dt
             ktx=kx-norm_Atdt_x
             kty=ky-norm_Atdt_y
             ktz=kz-norm_Atdt_z
             tnm_dt=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
+            rnm_dt=_r_nm(ktx,kty,ktz, r_Rnm, R)
             tnm_dt2=(tnm_dt+tnm)/2        
+            rnm_dt2=(rnm_dt+rnm)/2
 
-        # ktx=kx-norm_At_x
-        # kty=ky-norm_At_y
-        # ktz=kz-norm_At_z
-        # tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
-        sumE=np.real(tnm[0,0]+tnm[1,1])
-        diffE=2*tnm[0,1]
-        K1M=c1*(sumE*CM+diffE*CP)
-        K1P=c1*(sumE*CP+np.conjugate(diffE)*CM)
+        Mnm=tnm-qFt_x*rnm[...,0]-qFt_y*rnm[...,1]-qFt_z*rnm[...,2]
+        K1=c1*(np.einsum('nmi,mi->ni', Mnm, CB, optimize=True))
 
-        # ktx=kx-norm_Atdt2_x
-        # kty=ky-norm_Atdt2_y
-        # ktz=kz-norm_Atdt2_z
-        # tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
-        sumE=np.real(tnm_dt2[0,0]+tnm_dt2[1,1])
-        diffE=2*tnm_dt2[0,1]
-        K2M=c1*(sumE*(CM+K1M/2)+diffE*(CP+K1P/2))
-        K2P=c1*(sumE*(CP+K1P/2)+np.conjugate(diffE)*(CM+K1M/2))
-                
-        K3M=c1*(sumE*(CM+K2M/2)+diffE*(CP+K2P/2))
-        K3P=c1*(sumE*(CP+K2P/2)+np.conjugate(diffE)*(CM+K2M/2))
+        Mnm=tnm_dt2-qFtdt2_x*rnm_dt2[...,0]-qFtdt2_y*rnm_dt2[...,1]-qFtdt2_z*rnm_dt2[...,2]
+        K2=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K1/2, optimize=True))
+        K3=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K2/2, optimize=True))
+  
+        Mnm=tnm_dt-qFtdt_x*rnm_dt[...,0]-qFtdt_y*rnm_dt[...,1]-qFtdt_z*rnm_dt[...,2]
+        K4=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K3, optimize=True))
+  
+        CB+=K1/6+K2/3+K3/3+K4/6
 
-        # ktx=kx-norm_Atdt_x
-        # kty=ky-norm_Atdt_y
-        # ktz=kz-norm_Atdt_z
-        # tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
-        sumE=np.real(tnm_dt[0,0]+tnm_dt[1,1])
-        diffE=2*tnm_dt[0,1]
-        K4M=c1*(sumE*(CM+K3M)+diffE*(CP+K3P))
-        K4P=c1*(sumE*(CP+K3P)+np.conjugate(diffE)*(CM+K3M))
-
-        CM+=K1M/6+K2M/3+K3M/3+K4M/6
-        CP+=K1P/6+K2P/3+K3P/3+K4P/6
-
-    return CM, CP
+    return CB
 
 class TBevolution_CMCP:
 
@@ -315,4 +438,149 @@ class TBevolution_CMCP:
             dipole_y[min(it//istep+1, len(dipole_x)-1)]=1j*qe/2*np.sum((np.conj(CMw)*gradCM_y+np.conj(CPw)*gradCP_y)*self.dV)
         
         return time_dip, dipole_x, dipole_y
-            
+
+class TBevolution_Bloch:
+
+    def __init__(self, crystal:cr.crystal, Field:PolarizedHarmonicField):
+
+        if not crystal.grid.cartesian:
+            raise ValueError("crystal.grid must be cartesian")
+
+        self.crystal = crystal
+
+        self.Field=Field
+
+        self.k=self.crystal.grid.x[self.crystal.grid.inGrid] # note that k are points from the filtered grid
+        self.dV=self.crystal.grid.dV[self.crystal.grid.inGrid]
+        self.V=np.sum(self.dV)
+
+        if self.crystal.grid.ndim == 2:
+            if Field.s_direction[0]!= 0 or Field.s_direction[1]!= 0:
+                raise ValueError("s_direction must be [0,0,1], orthogonal to the xy plane")
+            # Añadir columna de ceros para kz
+            kz = np.zeros((self.k.shape[0], 1), dtype=np.float64)
+            b1 = np.array(self.crystal.reciprocal_vectors[0])[:2]
+            b2 = np.array(self.crystal.reciprocal_vectors[1])[:2]
+            A_BZ = abs(b1[0]*b2[1] - b1[1]*b2[0])
+            if abs(self.V/A_BZ - 1) > 0.1:
+                warnings.warn(f"La malla k cubre {self.V/A_BZ:.2f} zonas de Brillouin (sum dV = {self.V:.4g}, "
+                              f"|b1 x b2| = {A_BZ:.4g} 1/A^2): las corrientes saldran multiplicadas por ese factor.")
+
+            self.k = np.column_stack([self.k, kz])
+        elif self.crystal.grid.ndim == 1:
+            if Field.s_direction[0]!= 0:
+                raise ValueError("s_direction must be orthogonal to x")
+            # Añadir columnas de ceros para kz y ky
+            kz = np.zeros((self.k.shape[0], 1), dtype=np.float64)
+            ky = np.zeros((self.k.shape[0], 1), dtype=np.float64)
+            self.k = np.column_stack([self.k, ky, kz])    
+
+        self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to eV and apply degeneracy weights
+        self.r_Rnm=self.crystal.r_Rnm* self.crystal.direct_lattice_unit               # longitud: Å → m
+
+        self.R=cr.vector_in_cart(self.crystal.R_vectors, self.crystal.direct_vectors) # coordinate of the WZ cell in cartesian
+
+        self.deltas=self.crystal.deltas
+        self.num_wann=self.crystal.num_wann
+        self.nrpts=self.crystal.nrpts
+
+        kx=self.k[:,0]
+        ky=self.k[:,1]
+        kz=self.k[:,2]
+
+        # set the initial amplitudes of the Bloch states. 
+        # As all the population is in the lower band, the Bloch state aplitudes correspond to the 
+        # lower band amplitudes. CB has the coeficients for the orbitals in each column
+
+        _,CB=self.bands(kx,ky,kz)
+        self.CB=CB[:,0,:]  # banda de menor energia (eigh ordena ascendente): toda la poblacion en la banda de valencia
+
+    def __repr__(self):
+        info=f"# {self.__class__.__name__}:  id= {id(self):x} \n"
+        info+=f"# \n"
+        return info
+    
+    def bands(self,kx,ky,kz):
+        return _eigen_hermitian(self.tnm(kx,ky,kz))
+    
+    def tnm(self,kx,ky,kz):
+        return _t_nm(kx, ky, kz, self.h_Rnm, self.deltas, self.R)
+    
+    def grad_tnm(self,dim,kx,ky,kz):  
+        return _grad_t_nm(dim,kx,ky,kz,self.h_Rnm, self.deltas, self.R)# coputes the gradient in the direction dim
+
+    def rnm(self,kx,ky,kz):
+        return _r_nm(kx, ky, kz, self.r_Rnm, self.R)
+
+    def _field_components(self):
+        """Componentes cartesianas (x,y,z) del potencial vector A [dividido por
+        reciprocal_lattice_unit] y del campo electrico E [SI], en todos los instantes."""
+        if self.Field.A.ndim != 2 or self.Field.A.shape[1] != 3:
+            raise ValueError("Field.A y Field.E deben tener 3 columnas (paralela, perp., axial)")
+        p, q, s = polarization_frame(self.Field.s_direction)
+
+        def to_cartesian(F):                   # F: (n_t, 3) = (paralela, perp., axial)
+            return F[:, 0, None]*p + F[:, 1, None]*q + F[:, 2, None]*s
+
+        A = to_cartesian(self.Field.A)/self.crystal.reciprocal_lattice_unit
+        E = to_cartesian(self.Field.E)
+        return A[:, 0], A[:, 1], A[:, 2], E[:, 0], E[:, 1], E[:, 2]
+    
+    def rk_evolve(self,CB, kx, ky, kz, from_it:int, to_it:int):
+        if to_it>len(self.Field.A[:,0])-1:
+            to_it=len(self.Field.A[:,0])-1
+
+        Ax, Ay, Az, Ex, Ey, Ez = self._field_components()
+
+        CB=_rk_evolveCB(CB, kx,ky,kz, Ax, Ay, Az, Ex, Ey, Ez, self.Field.dt, self.h_Rnm, self.r_Rnm, self.deltas, self.R, from_it, to_it)
+
+        return CB
+
+    def _kappa(self, it):
+        """kappa(t) = k - (qe/hbar) A(t), en el indice de tiempo 'it'."""
+        kx, ky, kz = self.k[:, 0], self.k[:, 1], self.k[:, 2]
+        Ax, Ay, Az, _, _, _ = self._field_components()
+        c_qe__hbar = qe/hbar
+        return kx - c_qe__hbar*Ax[it], ky - c_qe__hbar*Ay[it], kz - c_qe__hbar*Az[it]
+
+    def _velocity_k(self, CB, kxt, kyt, kzt):
+        """Velocidad por k, (n_k, 3), en m/s. Sin peso dV ni espín."""
+        h = self.tnm(kxt, kyt, kzt)
+        r = self.rnm(kxt, kyt, kzt)
+        gradh = np.stack([self.grad_tnm(dim, kxt, kyt, kzt) for dim in range(3)], axis=-1)
+        gradh = gradh / self.crystal.reciprocal_lattice_unit
+        commutator = np.einsum('mlk,lnka->mnka', h, r) - np.einsum('mlka,lnk->mnka', r, h)
+        bracket = commutator - 1j*gradh
+        per_k = np.einsum('mk,mnka,nk->ka', np.conj(CB), bracket, CB)
+        return 1j/hbar * per_k
+
+    def _velocity(self, CB, kxt, kyt, kzt):
+        """<v> = sum_k dV_k v_k, (3,). Sin espín."""
+        v_k = self._velocity_k(CB, kxt, kyt, kzt)
+        return np.einsum('ka,k->a', v_k, self.dV)
+
+    def rk_dipole_velocity(self, npt: int):
+        
+        imax = len(self.Field.t)
+        istep = imax//npt
+
+        CBw = self.CB.copy()
+        kx, ky, kz = self.k[:, 0], self.k[:, 1], self.k[:, 2]
+
+        time_dip = np.zeros(npt, dtype=np.float64)
+        v = np.zeros((npt, 3), dtype=np.complex128)  # v[:,0]=vx, v[:,1]=vy, v[:,2]=vz
+
+        time_dip[0] = self.Field.t[0, 0]
+        v[0] = self._velocity(CBw, *self._kappa(0))
+
+        for it in range(0, imax, istep):
+            if it+istep >= imax:
+                break
+
+            CBw = self.rk_evolve(CBw, kx, ky, kz, it, it+istep)
+
+            idx = min(it//istep+1, npt-1)
+            time_dip[idx] = self.Field.t[it+istep, 0]
+            v[idx] = self._velocity(CBw, *self._kappa(it+istep))
+
+        return time_dip, v[:, 0], v[:, 1], v[:, 2]

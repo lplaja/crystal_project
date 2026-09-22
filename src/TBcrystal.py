@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def _compute_reciprocal_coordinates(vectors_coordinates, inverse=False):
     # computes the reciprocal vectors from the direct vectors or the reverse
-    # reciprocal vectors are ginen in units of 2pi/a
+    # reciprocal vectors are ginen in units of 2pi
     # direct vectors are given in units of a
     A = np.stack(vectors_coordinates).T  # d x d matrix
     # print(f'vprint in line: 9 --> {A.shape=}')
@@ -274,14 +274,14 @@ class crystal:
 
         # max hopping
         _h_Rnm = h_Rnm.copy()  
-        for n in range(num_wann):
-            h_Rnm[:,n,n] = 0   #exclude diagonals
+        # for n in range(num_wann):
+        #     _h_Rnm[:,n,n] = 0   #exclude diagonals
 
         max_hopping = np.max(np.abs(_h_Rnm))
         logging.info(f"Max. inter-site hopping={max_hopping} (absolute value)")
 
-        if threshold_hopping<1:
-            logging.info(f"Filtering hoppings above {threshold_hopping*100}% --> threshold={threshold_hopping*max_hopping} (absolute value)")
+        if threshold_hopping>0:
+            logging.info(f"Retaining hoppings above {threshold_hopping*100}% --> threshold={threshold_hopping*max_hopping} (absolute value)")
             
             ir_to_keep=[ir for ir in range(nrpts) if np.abs(_h_Rnm[ir]).max() > threshold_hopping*max_hopping]
             
@@ -318,3 +318,4 @@ class crystal:
             threshold_hopping=threshold_hopping,
         )
     
+
