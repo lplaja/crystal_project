@@ -1,7 +1,7 @@
 # Configuration file for a tigh-binding calculation
 
 [calculation] 
-    ID='prueba_manycalc_nk50'
+    ID='prueba'
     type='TBevolution_Bloch'
 
 [crystal]
@@ -12,10 +12,10 @@
     dim = 2     # direct lattice dimension
 
 [BZ] # if crystal.dim=1 only kx will be used, if 2D the kx and ky
-    nkx = 50
+    nkx = 900
     kx_min = -0.3048780488  # -0.75/a
     kx_max =  0.3048780488  #  0.75/a
-    nky = 50   
+    nky = 900    
     ky_min = -0.3048780488  # -0.75/a
     ky_max =  0.3048780488  #  0.75/a
     nkz = 1
@@ -49,7 +49,7 @@
 [time]
     tini = 0
     tfin = 8      # in units of the field periode
-    nt = 8192
+    nt = 32768
 
 [evolver]
     # type = 'TBevolution_CMCP'
@@ -59,5 +59,5 @@
     type = 'dipole_velocity'
 
 [evolver.calculation.args]
-    nt = 512  # evolver.calculation.args.nt/time.nt must be integer
+    nt = 1024  # evolver.calculation.args.nt/time.nt must be integer
     
