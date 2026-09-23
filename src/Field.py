@@ -186,8 +186,9 @@ class polarizedHarmonicElectricField(PolarizedHarmonicField):
         # print(f'vprint in line: 180 in Field --> {phi_rad=}')
         # print(f'vprint in line: 180 in Field --> {chi_rad=}')
         # print(f'vprint in line: 180 in Field --> {theta_rad=}')
-        # print(f'vprint in line: 180 in Field --> {Phi=}')
-        # print(f'vprint in line: 180 in Field --> {delta_phi=}')
+        print(f'vprint in line: 180 in Field --> {Phi=}')
+        print(f'vprint in line: 180 in Field --> {delta_phi=}')
+
 
 
         self.E0_parallel=self.E0*np.cos(Phi)*np.cos(theta_rad)

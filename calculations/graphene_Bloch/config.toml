@@ -1,7 +1,8 @@
 # Configuration file for a tigh-binding calculation
 
 [calculation] 
-    ID='prueba_manycalc_nk50'
+    # ID=['tilt_oscar_0','tilt_oscar_15','tilt_oscar_30']
+    ID='tilt_oscar_15'
     type='TBevolution_Bloch'
 
 [crystal]
@@ -12,10 +13,10 @@
     dim = 2     # direct lattice dimension
 
 [BZ] # if crystal.dim=1 only kx will be used, if 2D the kx and ky
-    nkx = 50
+    nkx = 500
     kx_min = -0.3048780488  # -0.75/a
     kx_max =  0.3048780488  #  0.75/a
-    nky = 50   
+    nky = 500  
     ky_min = -0.3048780488  # -0.75/a
     ky_max =  0.3048780488  #  0.75/a
     nkz = 1
@@ -34,7 +35,8 @@
     I_W__cm2 = 5e10 # intensity
     lambda = 3000  # wavelength in nm
     phi = -1.5707963267948966 # -pi/2
-    chi =  1.5707963267948966 # pi/2
+    # chi =  [1.5707963267948966, 1.308996939, 1.0471975512] # tilts de óscar 0, 15, 30
+    chi =  1.308996939 # tilt de óscar 15
     ellip = 0
 
 [Field.env]
@@ -49,7 +51,8 @@
 [time]
     tini = 0
     tfin = 8      # in units of the field periode
-    nt = 8192
+    # nt = 32768
+    nt = 32768
 
 [evolver]
     # type = 'TBevolution_CMCP'
