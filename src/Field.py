@@ -66,7 +66,7 @@ def env_lin(t:np.array, parameters: dict={'start':0, 'end':1, 'ton':0.5, 'toff':
     return env
 
 class HarmonicField():
-    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, phi_rad:float=0, 
+    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, varphi_rad:float=0, 
                  env:callable=None, env_parameters:dict=None):
         self.time=time_s
         self.t=time_s.x
@@ -78,7 +78,7 @@ class HarmonicField():
 
         self.w0=lambda2w(self.lambda0)
         self.T0=lambda2T(self.lambda0)
-        self.phi=phi_rad
+        self.varphi=varphi_rad
 
         self.carrier=None
         if env is not None:
@@ -93,112 +93,105 @@ class HarmonicField():
         self.A=None
 
 class PolarizedHarmonicField(HarmonicField):
-    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, phi_rad:float=0, 
+    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, varphi_rad:float=0, 
                  env:callable=None, env_parameters=None, chi_rad:float=0, ellip:float=0, theta_rad:float=0, 
                  s_direction_cartesian=np.array([0,0,1], dtype=float)):
         
-        super().__init__(time_s, I_W__cm2, lambda0_nm, phi_rad, env, env_parameters)
+        super().__init__(time_s, I_W__cm2, lambda0_nm, varphi_rad, env, env_parameters)
 
         self.chi=chi_rad
         self.ellip=ellip
         self.theta=theta_rad
         self.s_direction=s_direction_cartesian
 
-        self.Phi, self.delta_phi=self.ChiEllip2PhiDeltaPhi(self.chi, self.ellip)
-
+        self.phi, self.delta_varphi = self.ChiEps2PhiDeltaVarphi(self.chi, self.ellip)
+        
         # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.chi=}')
         # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.ellip=}')
         # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.theta=}')
-        # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.Phi=}')
-        # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.delta_phi=}')
+        # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.varphi=}')
+        # print(f'vprint in line: 108 In PolarizedHarmonicField--> {self.delta_varphi=}')
         self.E=None # These will be a 3D with E_parallel, E_perp and E_axial as columns.
         self.A=None # These will be a 3D with A_parallel, A_perp and A_axial as columns.
 
-    def ChiEllip2PhiDeltaPhi(self,chi, ellip):
-        # returs the polarization parameters phi and delta phi from the polarization ellipse tilt, chi, and ellipticity, ellip
-
-        eps=1e-30
-        def sign(a):
-            return np.where(a>0, 1, -1)
-                
-        argument_num=np.sqrt(np.tan(2*chi)**2+ellip**2+eps)*sign(chi)
-        argument_denom=np.sqrt(1-ellip**2)
-        Phi=0.5*np.atan2(argument_num, argument_denom) 
-
-        Phi=np.where((chi >= -np.pi/2) & (chi <= -np.pi/4), -Phi-np.pi/2, Phi)
-        Phi=np.where((chi >= np.pi/4) & (chi <= np.pi/2), -Phi+np.pi/2, Phi)
-        
-        delta_phi=np.asin(ellip*np.sqrt((1+np.tan(2*chi)**2+eps)/(ellip**2+np.tan(2*chi)**2+eps)))*np.sign(chi-eps)
-
-        return Phi, delta_phi
+    def ChiEps2PhiDeltaVarphi(self, chi, eps):
+        # Transparencia "Parámetros del vector de polarización a partir de la elipse"
+        # chi: inclinación (rad); eps = tan(psi) = ±b/a (eps>0 dextrógira)
+        chi = np.pi/2 - np.mod(np.pi/2 - chi, np.pi)          # chi en (-pi/2, pi/2]
+        sgn = np.where(chi >= 0, 1.0, -1.0)                   # sign(0) = +1
+        cos2psi = (1 - eps**2)/(1 + eps**2)
+        sin2psi = 2*eps/(1 + eps**2)
+        phi = 0.5*sgn*np.arccos(np.clip(cos2psi*np.cos(2*chi), -1, 1))
+        delta_varphi = np.arctan2(sgn*sin2psi, cos2psi*np.abs(np.sin(2*chi)))
+        return phi, delta_varphi
 
 class ScalarHarmonicElectricField(HarmonicField):
-    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, phi_rad:float=0, 
+    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, varphi_rad:float=0, 
                  env:callable=None, env_parameters=None):
         
-        super().__init__(time_s, I_W__cm2, lambda0_nm, phi_rad, env, env_parameters)
+        super().__init__(time_s, I_W__cm2, lambda0_nm, varphi_rad, env, env_parameters)
 
         self.E0=I2E(self.I) # in V/m
-        self.carrier=self.E0*np.cos(self.w0*time_s.x[:,0]+self.phi)
+        self.carrier=self.E0*np.cos(self.w0*time_s.x[:,0]+self.varphi)
 
         self.E=self.envelope*self.carrier
         self.A=-np.cumsum(self.E)*self.dt
     def __repr__(self):
         info=f"# {self.__class__.__name__}: id= {id(self):x} \n"
-        info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t phi={self.phi/np.pi:.4e} π rad \n"
+        info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t varphi={self.varphi/np.pi:.4e} π rad \n"
         info+=f"# \t env={self.env}  \t env_parameters={self.env_parameters}\n"
         info+=f"# \n"
         return info
 
 class ScalarHarmonicPotentialVectorField(HarmonicField):
-    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, phi_rad:float=0, 
+    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, varphi_rad:float=0, 
                  env:callable=None, env_parameters=None):
         
-        super().__init__(time_s, I_W__cm2, lambda0_nm, phi_rad, env, env_parameters)
+        super().__init__(time_s, I_W__cm2, lambda0_nm, varphi_rad, env, env_parameters)
 
         self.A0=-I2E(self.I)/self.w0 # in  V·s·m−1 or Wb·m−1
 
-        self.carrier=self.A0*np.cos(self.w0*time_s.x[:,0]+self.phi)
+        self.carrier=self.A0*np.cos(self.w0*time_s.x[:,0]+self.varphi)
         
         self.A=self.envelope*self.carrier
 
         self.E=-np.gradient(self.A, self.dt)
     def __repr__(self):
         info=f"# {self.__class__.__name__}: id= {id(self):x} \n"
-        info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t phi={self.phi/np.pi:.4e} π rad \n"
+        info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t varphi={self.varphi/np.pi:.4e} π rad \n"
         info+=f"# \t env={self.env}  \t env_parameters={self.env_parameters}\n"
         info+=f"# \n"
         return info
 
 class polarizedHarmonicElectricField(PolarizedHarmonicField):
-    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, phi_rad:float=0, 
+    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, varphi_rad:float=0, 
                 env:callable=None, env_parameters=None, chi_rad:float=0, ellip:float=0, theta_rad:float=0, 
                 s_direction_cartesian=np.array([0,0,1], dtype=float)):
         
-        super().__init__(time_s, I_W__cm2, lambda0_nm, phi_rad, env, env_parameters, chi_rad, ellip, 
+        super().__init__(time_s, I_W__cm2, lambda0_nm, varphi_rad, env, env_parameters, chi_rad, ellip, 
                          theta_rad, s_direction_cartesian)
 
         self.E0=I2E(self.I) # in V/m
 
-        Phi=self.Phi
-        delta_phi=self.delta_phi
+        phi=self.phi
+        delta_varphi=self.delta_varphi
 
-        # print(f'vprint in line: 180 in Field --> {phi_rad=}')
+        # print(f'vprint in line: 180 in Field --> {varphi_rad=}')
         # print(f'vprint in line: 180 in Field --> {chi_rad=}')
         # print(f'vprint in line: 180 in Field --> {theta_rad=}')
-        print(f'vprint in line: 180 in Field --> {Phi=}')
-        print(f'vprint in line: 180 in Field --> {delta_phi=}')
+        #print(f'vprint in line: 180 in Field --> {varphi=}')
+        #print(f'vprint in line: 180 in Field --> {delta_varphi=}')
 
 
 
-        self.E0_parallel=self.E0*np.cos(Phi)*np.cos(theta_rad)
-        self.E0_perp=self.E0*np.sin(Phi)*np.exp(-1j*delta_phi)*np.cos(theta_rad)
+        self.E0_parallel=self.E0*np.cos(phi)*np.cos(theta_rad)
+        self.E0_perp=self.E0*np.sin(phi)*np.exp(-1j*delta_varphi)*np.cos(theta_rad)
         self.E0_axial=self.E0*np.sin(theta_rad)
         # print(f'vprint in line: 183 in Field --> {self.E0_parallel=}')
         # print(f'vprint in line: 183 in Field --> {self.E0_perp=}')
         # print(f'vprint in line: 183 in Field --> {self.E0_axial=}')
         
-        temp_phase=np.exp(1j*self.w0*time_s.x[:,0]+1j*self.phi)
+        temp_phase=np.exp(-1j*self.w0*time_s.x[:,0]-1j*self.varphi)
         E_parallel=np.real(self.E0_parallel*temp_phase)
         E_perp=np.real(self.E0_perp*temp_phase)   
         E_axial=np.real(self.E0_axial*temp_phase)
@@ -213,10 +206,10 @@ class polarizedHarmonicElectricField(PolarizedHarmonicField):
     def __repr__(self):
         
         info=f"# {self.__class__.__name__}: id= {id(self):x} \n"
-        info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t phi={self.phi/np.pi:.4e} π rad \n"
+        info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t varphi={self.varphi/np.pi:.4e} π rad \n"
         info+=f"# \t env={self.env}  \t env_parameters={self.env_parameters}\n"
-        info+=f"# \t chi={self.chi/np.pi:.3e} π rad  \t ellip={self.ellip:.2e} m \n"
-        info+=f"# \t Phi={self.Phi/np.pi:.3e} π rad  \t delta_phi={self.delta_phi/np.pi:.3e} π rad  \n"
+        info+=f"# \t chi={self.chi/np.pi:.3e} π rad  \t ellip={self.ellip:.2e}  \n"
+        info+=f"# \t phi={self.phi/np.pi:.3e} π rad  \t delta_varphi={self.delta_varphi/np.pi:.3e} π rad  \n"
         info+=f"# \t theta={self.theta/np.pi:.3e} π rad  \t s_direction={self.s_direction}\n"
         info+=f"# \n"
         return info
@@ -267,23 +260,23 @@ class polarizedHarmonicElectricField(PolarizedHarmonicField):
 class polarizedHarmonicPotentialVectorField(PolarizedHarmonicField):
 
 
-    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, phi_rad:float=0, 
+    def __init__(self, time_s: UniformCartesianGrid, I_W__cm2:float, lambda0_nm:float, varphi_rad:float=0, 
                 env:callable=None, env_parameters=None, chi_rad:float=0, ellip:float=0, theta_rad:float=0, 
                 s_direction_cartesian=np.array([0,0,1], dtype=float)):
         
-        super().__init__(time_s, I_W__cm2, lambda0_nm, phi_rad, env, env_parameters, chi_rad, ellip, 
+        super().__init__(time_s, I_W__cm2, lambda0_nm, varphi_rad, env, env_parameters, chi_rad, ellip, 
                          theta_rad, s_direction_cartesian)
 
         self.A0=-I2E(self.I)/self.w0 # in  V·s·m−1 or Wb·m−1
 
-        Phi=self.Phi
-        delta_phi=self.delta_phi
+        phi=self.phi
+        delta_varphi=self.delta_varphi
 
-        self.A0_parallel=self.A0*np.cos(Phi)*np.cos(self.theta)
-        self.A0_perp=self.A0*np.sin(Phi)*np.exp(-1j*delta_phi)*np.cos(self.theta)
+        self.A0_parallel=self.A0*np.cos(phi)*np.cos(self.theta)
+        self.A0_perp=self.A0*np.sin(phi)*np.exp(-1j*delta_varphi)*np.cos(self.theta)
         self.A0_axial=self.A0*np.sin(self.theta)
 
-        temp_phase=np.exp(1j*self.w0*time_s.x[:,0]+1j*self.phi)
+        temp_phase=np.exp(-1j*self.w0*time_s.x[:,0]-1j*self.varphi)
         A_parallel=np.real(self.A0_parallel*temp_phase)
         A_perp=np.real(self.A0_perp*temp_phase)
         A_axial=np.real(self.A0_axial*temp_phase)
@@ -295,10 +288,10 @@ class polarizedHarmonicPotentialVectorField(PolarizedHarmonicField):
 
     def __repr__(self):
         info=f"# {self.__class__.__name__}: id= {id(self):x} \n"
-        info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t phi={self.phi/np.pi:.4e} π rad \n"
+        info+=f"# \t I={self.I:.3e} W/m$^2$ \t lambda0={self.lambda0:.4e} m \t varphi={self.varphi/np.pi:.4e} π rad \n"
         info+=f"# \t env={self.env}  \t env_parameters={self.env_parameters}\n"
         info+=f"# \t chi={self.chi/np.pi:.3e} π rad  \t ellip={self.ellip:.2e} \n"
-        info+=f"# \t Phi={self.Phi/np.pi:.3e} π rad  \t delta_phi={self.delta_phi/np.pi:.3e} π rad  \n"
+        info+=f"# \t phi={self.phi/np.pi:.3e} π rad  \t delta_varphi={self.delta_varphi/np.pi:.3e} π rad  \n"
         info+=f"# \t theta={self.theta/np.pi:.3e} π rad  \t s_direction={self.s_direction}\n"
         info+=f"# \n"
         return info

@@ -76,7 +76,7 @@ def campo(direccion, lambda_nm, n_ciclos, nptx, intensidad=1e8):
     T0 = Field.lambda2T(lambda_nm*1e-9)
     tt = gr.UniformCartesianGrid(1, limits=[0, n_ciclos*T0], nptx=nptx)
     return Field.polarizedHarmonicElectricField(
-        tt, I_W__cm2=intensidad, lambda0_nm=lambda_nm, phi_rad=-np.pi/2,
+        tt, I_W__cm2=intensidad, lambda0_nm=lambda_nm, varphi_rad=-np.pi/2,
         chi_rad=0.0 if direccion == 'x' else np.pi/2, ellip=0.0,
         env=Field.env_sin2, env_parameters={'start': 0, 'end': 1, 'ton': 0.5, 'toff': 0.5})
 

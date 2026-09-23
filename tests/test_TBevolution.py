@@ -37,10 +37,10 @@ def test_TBevolution_Bloch_parameters():
         fieldcallable=Field.polarizedHarmonicElectricField        
         I_W__cm2=5e10
         env_params={'start' : 0, 'end' : 1, 'ton'   : 0.5, 'toff'  : 0.5 } # in units of the time grid
-        phi_rad=-1.5707963267948966
+        varphi_rad=-1.5707963267948966
         chi_rad=1.5707963267948966
         ellip=0
-        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, phi_rad=phi_rad, chi_rad=chi_rad,ellip=ellip)
+        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, varphi_rad=varphi_rad, chi_rad=chi_rad,ellip=ellip)
 
         TBev=TBevolution.TBevolution_Bloch(TBcr, Efield)
         
@@ -78,10 +78,10 @@ def test_TBevolution_Bloch_bands():
         fieldcallable=Field.polarizedHarmonicElectricField        
         I_W__cm2=5e10
         env_params={'start' : 0, 'end' : 1, 'ton'   : 0.5, 'toff'  : 0.5 } # in units of the time grid
-        phi_rad=-1.5707963267948966
+        varphi_rad=-1.5707963267948966
         chi_rad=1.5707963267948966
         ellip=0
-        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, phi_rad=phi_rad, chi_rad=chi_rad,ellip=ellip)
+        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, varphi_rad=varphi_rad, chi_rad=chi_rad,ellip=ellip)
 
         TBev=TBevolution.TBevolution_Bloch(TBcr, Efield)
 
@@ -129,10 +129,10 @@ def test_grad_t_nm_matches_finite_difference():
         fieldcallable=Field.polarizedHarmonicElectricField        
         I_W__cm2=5e10
         env_params={'start' : 0, 'end' : 1, 'ton'   : 0.5, 'toff'  : 0.5 } # in units of the time grid
-        phi_rad=-1.5707963267948966
+        varphi_rad=-1.5707963267948966
         chi_rad=1.5707963267948966
         ellip=0
-        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, phi_rad=phi_rad, chi_rad=chi_rad,ellip=ellip)
+        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, varphi_rad=varphi_rad, chi_rad=chi_rad,ellip=ellip)
 
         TBev=TBevolution.TBevolution_Bloch(TBcr, Efield)
 

@@ -68,7 +68,7 @@ def simula_y_referencia(direccion):
     f = Field.polarizedHarmonicElectricField(
         tt, I_W__cm2=INTENSIDAD, lambda0_nm=LAMBDA_NM, env=Field.env_sin2,
         env_parameters={'start': 0, 'end': 1, 'ton': 0.5, 'toff': 0.5},
-        phi_rad=-np.pi/2, chi_rad=0.0 if direccion == 'x' else np.pi/2, ellip=0.0)
+        varphi_rad=-np.pi/2, chi_rad=0.0 if direccion == 'x' else np.pi/2, ellip=0.0)
     tb = TBevolution.TBevolution_Bloch(c, f)
 
     # ---- simulacion

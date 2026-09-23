@@ -173,21 +173,21 @@ def main():
         I_W__cm2=i_config['Field']['I_W__cm2']
         env=field_env_type[i_config['Field']['env']['type']]
         env_params=i_config['Field']['env']['args']
-        phi_rad=i_config['Field']['phi']
+        varphi_rad=i_config['Field']['phi']
         chi_rad=i_config['Field']['chi']
         ellip=i_config['Field']['ellip']
 
 #        logging.info(f'\t Intensity \t {I_W__cm2}  W/cm^2')
 #        logging.info(f'\t Envelope \t {env}')
 #        logging.info(f'\t \t env_params \t {env}')
-#        logging.info(f'\t \t phi \t {phi_rad}')
+#        logging.info(f'\t \t phi \t {varphi_rad}')
 #        logging.info(f'\t \t chi \t {chi_rad}')
 #        logging.info(f'\t \t ellip \t {ellip}')
 
 
         Efield=Field.polarizedHarmonicElectricField(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, 
                                                     env=env, env_parameters=env_params, 
-                                                    phi_rad=phi_rad, 
+                                                    varphi_rad=varphi_rad, 
                                                     chi_rad=chi_rad,ellip=ellip)
 
         logging.info('Constructing the TB evolver')

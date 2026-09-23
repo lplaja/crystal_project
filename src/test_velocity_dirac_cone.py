@@ -68,7 +68,7 @@ def get_system():
     # 40 pasos de 5e-17 s; campo identicamente nulo
     tt = gr.UniformCartesianGrid(1, limits=[0, 2e-15], nptx=41)
     Efield = Field.polarizedHarmonicElectricField(
-        tt, I_W__cm2=0.0, lambda0_nm=800.0, phi_rad=0.0,
+        tt, I_W__cm2=0.0, lambda0_nm=800.0, varphi_rad=0.0,
         chi_rad=0.0, ellip=0.0, theta_rad=0.0,
     )
     Efield.A[:] = 0.0

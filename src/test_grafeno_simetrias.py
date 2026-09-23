@@ -71,7 +71,7 @@ def evolucion(direccion, signo, nptx=NPT_TIEMPO, n=N_K):
     T0 = Field.lambda2T(LAMBDA_NM*1e-9)
     tt = gr.UniformCartesianGrid(1, limits=[0, N_CICLOS*T0], nptx=nptx)
     campo = Field.polarizedHarmonicElectricField(
-        tt, I_W__cm2=INTENSIDAD, lambda0_nm=LAMBDA_NM, phi_rad=phi, chi_rad=chi, ellip=0.0,
+        tt, I_W__cm2=INTENSIDAD, lambda0_nm=LAMBDA_NM, varphi_rad=phi, chi_rad=chi, ellip=0.0,
         env=Field.env_sin2, env_parameters={'start': 0, 'end': 1, 'ton': 0.5, 'toff': 0.5})
     TBev = TBevolution.TBevolution_Bloch(crystal, campo)
     _, vx, vy, vz = TBev.rk_dipole_velocity(N_MUESTRAS)
