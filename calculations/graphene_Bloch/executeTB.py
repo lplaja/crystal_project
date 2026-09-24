@@ -173,7 +173,7 @@ def main():
         I_W__cm2=i_config['Field']['I_W__cm2']
         env=field_env_type[i_config['Field']['env']['type']]
         env_params=i_config['Field']['env']['args']
-        varphi_rad=i_config['Field']['phi']
+        varphi_rad=i_config['Field']['varphi']
         chi_rad=i_config['Field']['chi']
         ellip=i_config['Field']['ellip']
 
