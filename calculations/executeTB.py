@@ -305,7 +305,7 @@ def run(config, name, out_dir):
         raise ValueError(f"unknown evolver.calculation.type {calc['type']!r}")
 
     logging.info('Starting the calculation: dipole_velocity')
-    t, vx, vy, vz = TBev.rk_dipole_velocity(npt=calc['args']['nt'])
+    t, vdx, vdy, vdz = TBev.rk_dipole_velocity(npt=calc['args']['nt'])
 
     filename = out_dir / f"{name}_{calc['type']}.txt"
     logging.info(f'Calculation finished. Writing to {filename}')
@@ -315,9 +315,9 @@ def run(config, name, out_dir):
     commented = '\n'.join('# ' + line for line in pprint.pformat(config, indent=2).splitlines())
     with open(filename, "w") as f:
         f.write(f"{msg1}\n{msg2}\n{rule}\n{commented}\n{rule}\n")
-        f.write("# t  vx  vy      (v = sum_k dV v_k, dV in 1/A^2, v in m/s)\n")
-        for i_t, i_vx, i_vy in zip(t, vx.real, vy.real):
-            f.write(f"{i_t:.16e} \t {i_vx:.16e} \t {i_vy:.16e} \n")
+        f.write("# t (s)   vdx  vdy   dipole velocity per unit cell, vd = g_s q cell_size sum_k dV v_k (C m/s)\n")
+        for i_t, i_vdx, i_vdy in zip(t, vdx.real, vdy.real):
+            f.write(f"{i_t:.16e} \t {i_vdx:.16e} \t {i_vdy:.16e} \n")
     logging.info('Done')
     return filename
 

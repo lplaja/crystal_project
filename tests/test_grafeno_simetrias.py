@@ -74,7 +74,9 @@ def evolucion(direccion, signo, nptx=NPT_TIEMPO, n=N_K):
         tt, I_W__cm2=INTENSIDAD, lambda0_nm=LAMBDA_NM, varphi_rad=phi, chi_rad=chi, ellip=0.0,
         env=Field.env_sin2, env_parameters={'start': 0, 'end': 1, 'ton': 0.5, 'toff': 0.5})
     TBev = TBevolution.TBevolution_Bloch(crystal, campo)
-    _, vx, vy, vz = TBev.rk_dipole_velocity(N_MUESTRAS)
+    _, vdx, vdy, vdz = TBev.rk_dipole_velocity(N_MUESTRAS)
+    g = TBev.spin_degeneracy*TBevolution.qe*TBev.cell_size       # vd = g * sum_k dV v
+    vx, vy, vz = vdx/g, vdy/g, vdz/g
     return np.array([vx, vy, vz])                       # (3, n_muestras), complejo
 
 

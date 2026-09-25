@@ -11,7 +11,7 @@ import warnings
 
 # logging.basicConfig(
 #     filename="graphene_TightBinding.log",
-#     filemode="w", 
+#     filemode="w",
 #     level=logging.INFO,
 #     format="%(asctime)s %(levelname)s: %(message)s",
 # )
@@ -42,7 +42,7 @@ def polarization_frame(s_direction):
 def _fk(kx,ky,a):
     kdota0a1=2*np.pi*(kx*(a[0][0]+a[1][0])+ky*(a[0][1]+a[1][1]))
     kdota0=2*np.pi*(kx*a[0][0]+ky*a[0][1])
-    kdota1=2*np.pi*(kx*a[1][0]+ky*a[1][1])    
+    kdota1=2*np.pi*(kx*a[1][0]+ky*a[1][1])
     fk=np.exp(-1j*kdota0a1/3)*(1+np.exp(1j*kdota0)+np.exp(1j*kdota1))
     return fk
 
@@ -57,7 +57,7 @@ def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
         for m in range(n_orb):
             tnm_vector=h_Rnm[:,n,m]
             arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
-            
+
             for iR in range(n_R):
                 #R_delta=R[iR]+deltas[m]-deltas[n]
                 R_delta=R[iR]
@@ -83,7 +83,7 @@ def _grad_t_nm(dim,kx,ky,kz,h_Rnm, deltas, R):  # coputes the gradient in the di
             tnm_vector=h_Rnm[:,n,m]
 
             arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
-            
+
             for iR in range(n_R):
                 #R_delta=R[iR]+deltas[m]-deltas[n]
                 R_delta=R[iR]
@@ -110,7 +110,7 @@ def _r_nm(kx,ky,kz,r_Rnm, R):
             rnm_y_vector=r_Rnm[:,n,m,1]
             rnm_z_vector=r_Rnm[:,n,m,2]
             arg_exp= np.zeros((n_R, n_k), dtype=np.complex128)
-            
+
             for iR in range(n_R):
                 R_delta=R[iR]
                 arg_exp[iR, :] = (
@@ -127,7 +127,7 @@ def _r_nm(kx,ky,kz,r_Rnm, R):
 
 #@njit(parallel=True)
 def _eigen_hermitian(t_nm):
-    
+
     t_nm = np.moveaxis(t_nm, -1, 0)          # (N_k, N_orb, N_orb)
     energies, eigvecs = np.linalg.eigh(t_nm)
     # energies: (N_k, N_orb), eigvecs: (N_k, N_orb, N_orb)
@@ -155,7 +155,7 @@ def _rk_evolveCMCP(CM, CP, kx,ky, Ax, Ay, dt, a, gamma0, from_it:int, to_it:int)
         else:
             norm_Atdt_x=c_qe__hbar*Ax[it+1]
             norm_Atdt_y=c_qe__hbar*Ay[it+1]
-            
+
         norm_Atdt2_x=(norm_Atdt_x+norm_At_x)/2
         norm_Atdt2_y=(norm_Atdt_y+norm_At_y)/2
 
@@ -175,7 +175,7 @@ def _rk_evolveCMCP(CM, CP, kx,ky, Ax, Ay, dt, a, gamma0, from_it:int, to_it:int)
         diffE=-2*g0fk
         K2M=c1*(sumE*(CM+K1M/2)+diffE*(CP+K1P/2))
         K2P=c1*(sumE*(CP+K1P/2)+np.conjugate(diffE)*(CM+K1M/2))
-                
+
         K3M=c1*(sumE*(CM+K2M/2)+diffE*(CP+K2P/2))
         K3P=c1*(sumE*(CP+K2P/2)+np.conjugate(diffE)*(CM+K2M/2))
 
@@ -229,7 +229,7 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
             qFtdt_x=qe*Ex[it+1]
             qFtdt_y=qe*Ey[it+1]
             qFtdt_z=qe*Ez[it+1]
-            
+
         norm_Atdt2_x=(norm_Atdt_x+norm_At_x)/2
         norm_Atdt2_y=(norm_Atdt_y+norm_At_y)/2
         norm_Atdt2_z=(norm_Atdt_z+norm_At_z)/2
@@ -259,7 +259,7 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
             ktz=kz-norm_Atdt_z
             tnm_dt=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
             rnm_dt=_r_nm(ktx,kty,ktz, r_Rnm, R)
-            tnm_dt2=(tnm_dt+tnm)/2        
+            tnm_dt2=(tnm_dt+tnm)/2
             rnm_dt2=(rnm_dt+rnm)/2
 
         Mnm=tnm-qFt_x*rnm[...,0]-qFt_y*rnm[...,1]-qFt_z*rnm[...,2]
@@ -268,10 +268,10 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
         Mnm=tnm_dt2-qFtdt2_x*rnm_dt2[...,0]-qFtdt2_y*rnm_dt2[...,1]-qFtdt2_z*rnm_dt2[...,2]
         K2=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K1/2, optimize=True))
         K3=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K2/2, optimize=True))
-  
+
         Mnm=tnm_dt-qFtdt_x*rnm_dt[...,0]-qFtdt_y*rnm_dt[...,1]-qFtdt_z*rnm_dt[...,2]
         K4=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K3, optimize=True))
-  
+
         CB+=K1/6+K2/3+K3/3+K4/6
 
     return CB
@@ -303,7 +303,7 @@ class TBevolution_CMCP:
             # Añadir columnas de ceros para kz y ky
             kz = np.zeros((self.k.shape[0], 1), dtype=np.float64)
             ky = np.zeros((self.k.shape[0], 1), dtype=np.float64)
-            self.k = np.column_stack([self.k, ky, kz])    
+            self.k = np.column_stack([self.k, ky, kz])
 
         self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to eV and apply degeneracy weights
 
@@ -323,7 +323,7 @@ class TBevolution_CMCP:
         self.CM_py=-np.ones(kx.shape[0],dtype=np.complex128)/sqrt_norm
         self.CM_my=-np.ones(kx.shape[0],dtype=np.complex128)/sqrt_norm
 
-        self.CP   =np.ones(kx.shape[0],dtype=np.complex128)*np.exp(-1j*self.phik(kx,ky,kz))/sqrt_norm    
+        self.CP   =np.ones(kx.shape[0],dtype=np.complex128)*np.exp(-1j*self.phik(kx,ky,kz))/sqrt_norm
         self.CP_px=np.ones(kx.shape[0],dtype=np.complex128)*np.exp(-1j*self.phik(kx+epsk,ky,kz))/sqrt_norm
         self.CP_mx=np.ones(kx.shape[0],dtype=np.complex128)*np.exp(-1j*self.phik(kx-epsk,ky,kz))/sqrt_norm
         self.CP_py=np.ones(kx.shape[0],dtype=np.complex128)*np.exp(-1j*self.phik(kx, ky+epsk,kz))/sqrt_norm
@@ -333,28 +333,28 @@ class TBevolution_CMCP:
         info=f"# {self.__class__.__name__}:  id= {id(self):x} \n"
         info+=f"# \n"
         return info
-    
+
     def tnm(self,kx,ky,kz):
         return _t_nm(kx, ky, kz, self.h_Rnm, self.deltas, self.R)
-    
+
     def phik(self,kx,ky,kz):
         tnm=self.tnm(kx,ky,kz)
         return np.angle(tnm[0,1])
-        
+
     def Cv(self):
         kx=self.k[:,0]
         ky=self.k[:,1]
         kz=self.k[:,2]
         exp_phik=np.exp(1j*self.phik(kx,ky,kz))
         return (self.CP*exp_phik-self.CM)/2
-    
+
     def Cc(self):
         kx=self.k[:,0]
         ky=self.k[:,1]
         kz=self.k[:,2]
         exp_phik=np.exp(1j*self.phik(kx,ky,kz))
         return (self.CP*exp_phik+self.CM)/2
-        
+
     def rk_evolve(self,CM, CP, kx, ky, kz, from_it:int, to_it:int):
         if to_it>len(self.Field.A[:,0])-1:
             to_it=len(self.Field.A[:,0])-1
@@ -367,14 +367,14 @@ class TBevolution_CMCP:
         ## add the axial part
         Ax+=self.Field.A[:,2]/self.crystal.reciprocal_lattice_unit*sinus
         Az+=self.Field.A[:,2]/self.crystal.reciprocal_lattice_unit*self.Field.s_direction[2]
-    
+
         Ay=self.Field.A[:,1]/self.crystal.reciprocal_lattice_unit
 
         CM, CP=_rk_evolveCMCP(CM, CP, kx,ky,kz, Ax, Ay, Az, self.Field.dt, self.h_Rnm, self.deltas, self.R, from_it, to_it)
         # CM, CP=_rk_evolveCMCP(CM, CP, kx,ky,kz, Ax, Ay, Az, self.Field.dt, self.neighbor_hoppings, self.neighbor_positions,
         #                       from_it, to_it, self.crystal.direct_vectors)
         return CM, CP
-    
+
     def rk_dipole(self, npt:int):
         start_time = time.time()
 
@@ -436,12 +436,12 @@ class TBevolution_CMCP:
             time_dip[min(it//istep+1, len(dipole_x)-1)]=self.Field.t[it+istep]
             dipole_x[min(it//istep+1, len(dipole_x)-1)]=1j*qe/2*np.sum((np.conj(CMw)*gradCM_x+np.conj(CPw)*gradCP_x)*self.dV)
             dipole_y[min(it//istep+1, len(dipole_x)-1)]=1j*qe/2*np.sum((np.conj(CMw)*gradCM_y+np.conj(CPw)*gradCP_y)*self.dV)
-        
+
         return time_dip, dipole_x, dipole_y
 
 class TBevolution_Bloch:
 
-    def __init__(self, crystal:cr.crystal, Field:PulsedField):
+    def __init__(self, crystal:cr.crystal, Field:PulsedField, spin_degeneracy:int=2):
 
         if not crystal.grid.cartesian:
             raise ValueError("crystal.grid must be cartesian")
@@ -454,18 +454,23 @@ class TBevolution_Bloch:
         self.dV=self.crystal.grid.dV[self.crystal.grid.inGrid]
         self.V=np.sum(self.dV)
 
+        # Size of the unit cell (length, area or volume, in A^dim) spanned by the first dim direct vectors:
+        # sqrt of the Gram determinant, valid for dim = 1, 2, 3 (|a1|, |a1 x a2|, |a1.(a2 x a3)|).
+        # A k grid covering exactly one Brillouin zone has sum_k dV = 1/cell_size (k without 2 pi).
+        self.spin_degeneracy = spin_degeneracy
+        dim = self.crystal.grid.ndim
+        a = np.asarray(self.crystal.direct_vectors, dtype=float)[:dim]
+        self.cell_size = np.sqrt(np.linalg.det(a @ a.T))
+        n_BZ = self.V*self.cell_size
+        if abs(n_BZ - 1) > 0.1:
+            warnings.warn(f"The k grid covers {n_BZ:.2f} Brillouin zones (sum dV = {self.V:.4g} 1/A^{dim}, "
+                          f"unit cell = {self.cell_size:.4g} A^{dim}): the dipole velocity is multiplied by that factor.")
+
         if self.crystal.grid.ndim == 2:
             if Field.s_direction[0]!= 0 or Field.s_direction[1]!= 0:
                 raise ValueError("s_direction must be [0,0,1], orthogonal to the xy plane")
             # Añadir columna de ceros para kz
             kz = np.zeros((self.k.shape[0], 1), dtype=np.float64)
-            b1 = np.array(self.crystal.reciprocal_vectors[0])[:2]
-            b2 = np.array(self.crystal.reciprocal_vectors[1])[:2]
-            A_BZ = abs(b1[0]*b2[1] - b1[1]*b2[0])
-            if abs(self.V/A_BZ - 1) > 0.1:
-                warnings.warn(f"La malla k cubre {self.V/A_BZ:.2f} zonas de Brillouin (sum dV = {self.V:.4g}, "
-                              f"|b1 x b2| = {A_BZ:.4g} 1/A^2): las corrientes saldran multiplicadas por ese factor.")
-
             self.k = np.column_stack([self.k, kz])
         elif self.crystal.grid.ndim == 1:
             if Field.s_direction[0]!= 0:
@@ -473,7 +478,7 @@ class TBevolution_Bloch:
             # Añadir columnas de ceros para kz y ky
             kz = np.zeros((self.k.shape[0], 1), dtype=np.float64)
             ky = np.zeros((self.k.shape[0], 1), dtype=np.float64)
-            self.k = np.column_stack([self.k, ky, kz])    
+            self.k = np.column_stack([self.k, ky, kz])
 
         self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to eV and apply degeneracy weights
         self.r_Rnm=self.crystal.r_Rnm* self.crystal.direct_lattice_unit               # longitud: Å → m
@@ -488,8 +493,8 @@ class TBevolution_Bloch:
         ky=self.k[:,1]
         kz=self.k[:,2]
 
-        # set the initial amplitudes of the Bloch states. 
-        # As all the population is in the lower band, the Bloch state aplitudes correspond to the 
+        # set the initial amplitudes of the Bloch states.
+        # As all the population is in the lower band, the Bloch state aplitudes correspond to the
         # lower band amplitudes. CB has the coeficients for the orbitals in each column
 
         _,CB=self.bands(kx,ky,kz)
@@ -499,14 +504,14 @@ class TBevolution_Bloch:
         info=f"# {self.__class__.__name__}:  id= {id(self):x} \n"
         info+=f"# \n"
         return info
-    
+
     def bands(self,kx,ky,kz):
         return _eigen_hermitian(self.tnm(kx,ky,kz))
-    
+
     def tnm(self,kx,ky,kz):
         return _t_nm(kx, ky, kz, self.h_Rnm, self.deltas, self.R)
-    
-    def grad_tnm(self,dim,kx,ky,kz):  
+
+    def grad_tnm(self,dim,kx,ky,kz):
         return _grad_t_nm(dim,kx,ky,kz,self.h_Rnm, self.deltas, self.R)# coputes the gradient in the direction dim
 
     def rnm(self,kx,ky,kz):
@@ -525,7 +530,7 @@ class TBevolution_Bloch:
         A = to_cartesian(self.Field.A)/self.crystal.reciprocal_lattice_unit
         E = to_cartesian(self.Field.E)
         return A[:, 0], A[:, 1], A[:, 2], E[:, 0], E[:, 1], E[:, 2]
-    
+
     def rk_evolve(self,CB, kx, ky, kz, from_it:int, to_it:int):
         if to_it>len(self.Field.A[:,0])-1:
             to_it=len(self.Field.A[:,0])-1
@@ -544,7 +549,18 @@ class TBevolution_Bloch:
         return kx - c_qe__hbar*Ax[it], ky - c_qe__hbar*Ay[it], kz - c_qe__hbar*Az[it]
 
     def _velocity_k(self, CB, kxt, kyt, kzt):
-        """Velocidad por k, (n_k, 3), en m/s. Sin peso dV ni espín."""
+        """Velocity of the electron in the state of every k point, shape (n_k, 3), in m/s:
+
+            v_k = < C_k | (1/hbar) dH/dK + (i/hbar) [H, r] | C_k >        evaluated at kappa
+
+        H(kappa) = sum_R h_R exp(2 pi i kappa.R)   (orbital basis, J)
+        r(kappa) = sum_R r_R exp(2 pi i kappa.R)   (Wannier position matrix, m)
+        kappa = (kxt, kyt, kzt) = k - (q/hbar) A(t), given by the caller, in 1/A WITHOUT 2 pi;
+        K = 2 pi kappa is the wavevector in 1/m: dH/dK = grad_tnm / reciprocal_lattice_unit (J m).
+        The two terms come from the position operator in the Bloch representation, x = i d/dK + r(K):
+        group velocity (intraband) and commutator with the Wannier position matrix (interband).
+        C_k = CB[:, k] are the orbital amplitudes, normalized to 1: velocity of ONE electron.
+        No dV weight, no spin, no charge."""
         h = self.tnm(kxt, kyt, kzt)
         r = self.rnm(kxt, kyt, kzt)
         gradh = np.stack([self.grad_tnm(dim, kxt, kyt, kzt) for dim in range(3)], axis=-1)
@@ -555,12 +571,32 @@ class TBevolution_Bloch:
         return 1j/hbar * per_k
 
     def _velocity(self, CB, kxt, kyt, kzt):
-        """<v> = sum_k dV_k v_k, (3,). Sin espín."""
+        """Brillouin-zone sum of the electron velocity, shape (3,), in A^-dim m/s:
+
+            V = sum_k dV_k v_k          (v_k from _velocity_k, in m/s)
+
+        dV_k is the k-grid cell in 1/A^dim, with k WITHOUT 2 pi (k = K/2pi), so that
+        sum_k dV_k ~ integral d^dK/(2 pi)^dim (number of states per A^dim, per spin) and, for a grid
+        covering one Brillouin zone, sum_k dV_k = 1/cell_size. V is the particle current density of the
+        band per spin. No spin, no charge."""
         v_k = self._velocity_k(CB, kxt, kyt, kzt)
         return np.einsum('ka,k->a', v_k, self.dV)
 
     def rk_dipole_velocity(self, npt: int):
-        
+        """Evolve the Bloch amplitudes (RK4) and sample the dipole velocity per unit cell at npt times:
+
+            vd(t) = g_s q cell_size sum_k dV_k v_k(t)       in C m/s
+
+        v_k(t): velocity of the electron in state k at kappa(t) (see _velocity_k), in m/s
+        dV_k:   k-grid cell in 1/A^dim (k without 2 pi); cell_size: unit cell in A^dim, so that
+                cell_size * sum_k dV_k = 1 when the grid covers one Brillouin zone (then vd is the charge
+                times the summed velocity of the g_s electrons of the band in one unit cell)
+        q = -e, g_s = spin_degeneracy (2 without spin-orbit)
+        Current density: j = vd / (cell_size * 1e-10**dim)  in A (1D), A/m (2D), A/m^2 (3D).
+
+        The dipole velocity is sampled every istep = len(t)//npt time steps: use len(t) multiple of npt.
+        Returns t (s) and the components vdx, vdy, vdz (complex arrays; the imaginary part is numerical noise).
+        """
         imax = len(self.Field.t)
         istep = imax//npt
 
@@ -583,4 +619,5 @@ class TBevolution_Bloch:
             time_dip[idx] = self.Field.t[it+istep]
             v[idx] = self._velocity(CBw, *self._kappa(it+istep))
 
-        return time_dip, v[:, 0], v[:, 1], v[:, 2]
+        vd = self.spin_degeneracy*qe*self.cell_size*v   # dipole velocity per unit cell, C m/s
+        return time_dip, vd[:, 0], vd[:, 1], vd[:, 2]
