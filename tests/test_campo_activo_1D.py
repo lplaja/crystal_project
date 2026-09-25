@@ -39,7 +39,7 @@ def crystal_falso(h_Rnm_eV, r_Rnm_A, R_vectors, k):
     k = np.atleast_1d(np.asarray(k, dtype=float))
     n_orb = h_Rnm_eV.shape[1]
     grid = SimpleNamespace(cartesian=True, ndim=1, x=k[:, None],
-                           inGrid=np.ones(len(k), dtype=bool), dV=np.ones(len(k)))
+                        inGrid=np.ones(len(k), dtype=bool), dV=np.full(len(k), 1/A_LAT))
     # numba (@njit en _r_nm y _grad_t_nm) exige mismo dtype en np.dot: el cristal real trae
     # h_Rnm y r_Rnm complejos (Wannier90), asi que aqui tambien.
     return SimpleNamespace(
@@ -150,8 +150,9 @@ def test_oscilaciones_de_Bloch():
     campo = campo_constante({0: F}, (0, 0, 1), 2001, 1e-17)          # 2 periodos de Bloch
     TBev = TBe.TBevolution_Bloch(crystal, campo)
 
-    time_dip, vx, vy, vz = TBev.rk_dipole_velocity(npt=40)
+    time_dip, vdx, vdy, vdz = TBev.rk_dipole_velocity(npt=40)
     q = -elementary_charge
+    vx, vy, vz = (c/(TBev.spin_degeneracy*q) for c in (vdx, vdy, vdz))   # vd = g_s q v (one k = whole BZ)
     v0 = 2*t_hop*eV*a_m/hbar
     v_ana = v0*np.sin(fase0 + q*F*a_m*time_dip/hbar)
 

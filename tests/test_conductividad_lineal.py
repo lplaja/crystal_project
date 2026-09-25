@@ -163,10 +163,10 @@ def _evolucion_vs_lineal(direccion):
                                     threshold_hopping=0)
     f = campo(direccion, 800.0, 4, NPTX)
     TBev = TBevolution.TBevolution_Bloch(c, f)
-    t, vx, vy, vz = TBev.rk_dipole_velocity(NPT)
+    t, vdx, vdy, vdz = TBev.rk_dipole_velocity(NPT)
     assert np.allclose(np.diff(t), np.diff(t)[0]), "muestras temporales no uniformes (NPTX debe ser multiplo de NPT)"
-    v = (vx if direccion == 'x' else vy).real
-    j = G_S*(-e)*(v - v[0])*1e20                                      # [A/m]: j = g_s q sum_k dV v, dV en 1/A^2
+    vd = (vdx if direccion == 'x' else vdy).real
+    j = (vd - vd[0])/(TBev.cell_size*1e-20)                           # [A/m]: j = vd / cell area (A^2 -> m^2)                                    # [A/m]: j = g_s q sum_k dV v, dV en 1/A^2
     col = 0 if direccion == 'x' else 1
     E = f.E[np.rint(t/f.dt).astype(int), col]
     sigma_sim = _trapz(j*E, t)/_trapz(E*E, t)

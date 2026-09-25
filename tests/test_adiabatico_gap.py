@@ -72,9 +72,9 @@ def simula_y_referencia(direccion):
     tb = TBevolution.TBevolution_Bloch(c, f)
 
     # ---- simulacion
-    t, vx, vy, vz = tb.rk_dipole_velocity(NPT)
-    v = (vx if direccion == 'x' else vy).real
-    j_sim = G_S*(-e)*v*1e20                                     # A/m
+    t, vdx, vdy, vdz = tb.rk_dipole_velocity(NPT)
+    vd = (vdx, vdy)[col].real
+    j_sim = vd/(tb.cell_size*1e-20)                              # A/m
     assert np.allclose(np.diff(t), t[1]-t[0], rtol=1e-6), "muestreo no uniforme (usa nptx multiplo de npt)"
 
     # ---- referencia de bandas + polarizacion (analitica 2x2)
