@@ -1,8 +1,8 @@
 # Configuration file for a tigh-binding calculation
 
 [calculation] 
-    ID=['tilt_oscar_0','tilt_oscar_15','tilt_oscar_30']
-    #ID='tilt_oscar_15'
+    #ID=['tilt_oscar_0','tilt_oscar_15','tilt_oscar_30']
+    ID='tilt_oscar_0'
     type='TBevolution_Bloch'
 
 [crystal]
@@ -35,9 +35,9 @@
     I_W__cm2 = 5e10 # intensity
     lambda = 3000  # wavelength in nm
     varphi = -1.5707963267948966 # -pi/2
-    chi =  [1.5707963267948966, 1.308996939, 1.0471975512] # tilts de óscar 0, 15, 30
+    #chi =  [1.5707963267948966, 1.308996939, 1.0471975512] # tilts de óscar 0, 15, 30
     # chi =  1.308996939 # tilt de óscar 15
-    # chi =  1.5707963267948966 # tilt de óscar 0
+    chi =  1.5707963267948966 # tilt de óscar 0
     ellip = 0
 
 [Field.env]
