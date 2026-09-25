@@ -35,6 +35,14 @@ def ellipse_to_jones(chi, eps):
     delta_varphi = np.arctan2(sgn*sin2psi, cos2psi*np.abs(np.sin(2*chi)))
     return phi, delta_varphi
 
+def jones_to_ellipse(phi, delta_varphi):
+    # Transparencia "Parámetros de la elipse" (inversa de ellipse_to_jones)
+    # phi, delta_varphi: e_sigma = cos(phi) e_par + exp(-i delta_varphi) sin(phi) e_perp
+    # devuelve chi en (-pi/2, pi/2] y eps = tan(psi) = ±b/a (eps>0 dextrógira)
+    chi = 0.5*np.arctan2(np.sin(2*phi)*np.cos(delta_varphi), np.cos(2*phi))
+    eps = np.tan(0.5*np.arcsin(np.clip(np.sin(2*phi)*np.sin(delta_varphi), -1, 1)))
+    return chi, eps
+
 #### ENVELOPES
 
 def env_sin2(t:np.array, parameters: dict={'start':0, 'end':1, 'ton':0.5, 'toff':0.5}):
