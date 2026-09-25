@@ -72,10 +72,7 @@ evolution_type={
     'TBevolution_Bloch':TBevolution.TBevolution_Bloch
 }   
 
-field_type={
-    'polarizedHarmonicElectricField':Field.polarizedHarmonicElectricField,
-    'polarizedHarmonicPotentialVectorField':Field.polarizedHarmonicPotentialVectorField
-}
+field_type={'PulsedField': Field.PulsedField}
 
 field_env_type={
     'env_sin2':Field.env_sin2
@@ -161,7 +158,7 @@ def main():
         logging.info('Constructing the temporal grid')
 
         lambda0=i_config['Field']['lambda']*1e-9
-        T0=Field.lambda2T(lambda0)
+        T0=Field.lambda_to_T(lambda0)
         tini=i_config['time']['tini']*T0
         tfin=i_config['time']['tfin']*T0
         limits=[tini,tfin]
@@ -173,21 +170,14 @@ def main():
         I_W__cm2=i_config['Field']['I_W__cm2']
         env=field_env_type[i_config['Field']['env']['type']]
         env_params=i_config['Field']['env']['args']
-        phi_rad=i_config['Field']['phi']
+        varphi_rad=i_config['Field']['varphi']
         chi_rad=i_config['Field']['chi']
         ellip=i_config['Field']['ellip']
+        field=field_type[i_config['Field']['type']]
 
-#        logging.info(f'\t Intensity \t {I_W__cm2}  W/cm^2')
-#        logging.info(f'\t Envelope \t {env}')
-#        logging.info(f'\t \t env_params \t {env}')
-#        logging.info(f'\t \t phi \t {phi_rad}')
-#        logging.info(f'\t \t chi \t {chi_rad}')
-#        logging.info(f'\t \t ellip \t {ellip}')
-
-
-        Efield=Field.polarizedHarmonicElectricField(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, 
+        Efield=field(tt,field_type='E',I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, 
                                                     env=env, env_parameters=env_params, 
-                                                    phi_rad=phi_rad, 
+                                                    varphi_rad=varphi_rad, 
                                                     chi_rad=chi_rad,ellip=ellip)
 
         logging.info('Constructing the TB evolver')
@@ -212,7 +202,7 @@ def main():
                 f.write(msg1+'\n')
                 msg2='# DATE: '+datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 f.write(msg2+'\n')
-                msg='='*len(max(msg1,msg2))
+                msg='='*max(len(msg1), len(msg2))
                 f.write('#'+msg+'\n')
                 f.write(commented+'\n')
                 f.write('#'+msg+'\n')

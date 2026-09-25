@@ -54,9 +54,9 @@ def campo_constante(amplitudes, s_direction, N, dt):
     """Campo constante en el tiempo: amplitudes = {columna: F [V/m]} con columnas
     0=paralela, 1=perpendicular, 2=axial. A = -F t exacto (sin el desfase de cumsum)."""
     tt = gr.UniformCartesianGrid(1, limits=[0, N*dt], nptx=N)
-    f = Field.polarizedHarmonicElectricField(tt, I_W__cm2=0.0, lambda0_nm=800.0,
+    f = Field.PulsedField(tt, I_W__cm2=0.0, lambda0_nm=800.0,
                                              s_direction_cartesian=np.array(s_direction, dtype=float))
-    t = f.t[:, 0]
+    t = f.t
     f.E[:] = 0.0
     f.A[:] = 0.0
     for col, F in amplitudes.items():

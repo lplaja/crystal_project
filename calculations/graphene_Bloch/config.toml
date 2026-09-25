@@ -1,8 +1,8 @@
 # Configuration file for a tigh-binding calculation
 
 [calculation] 
-    # ID=['tilt_oscar_0','tilt_oscar_15','tilt_oscar_30']
-    ID='tilt_oscar_15'
+    #ID=['tilt_oscar_0','tilt_oscar_15','tilt_oscar_30']
+    ID='tilt_oscar_0'
     type='TBevolution_Bloch'
 
 [crystal]
@@ -31,12 +31,13 @@
     radius = 0.27100271  # 2/3/a
 
 [Field]
-    type ='polarizedHarmonicElectricField'
+    type ='PulsedField'
     I_W__cm2 = 5e10 # intensity
     lambda = 3000  # wavelength in nm
-    phi = -1.5707963267948966 # -pi/2
-    # chi =  [1.5707963267948966, 1.308996939, 1.0471975512] # tilts de óscar 0, 15, 30
-    chi =  1.308996939 # tilt de óscar 15
+    varphi = -1.5707963267948966 # -pi/2
+    #chi =  [1.5707963267948966, 1.308996939, 1.0471975512] # tilts de óscar 0, 15, 30
+    # chi =  1.308996939 # tilt de óscar 15
+    chi =  1.5707963267948966 # tilt de óscar 0
     ellip = 0
 
 [Field.env]
@@ -52,7 +53,7 @@
     tini = 0
     tfin = 8      # in units of the field periode
     # nt = 32768
-    nt = 32768
+    nt = 16384
 
 [evolver]
     # type = 'TBevolution_CMCP'
@@ -62,5 +63,5 @@
     type = 'dipole_velocity'
 
 [evolver.calculation.args]
-    nt = 512  # evolver.calculation.args.nt/time.nt must be integer
+    nt = 1024  # evolver.calculation.args.nt/time.nt must be integer
     

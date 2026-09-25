@@ -25,7 +25,7 @@ con |E(omega)|^2. La corriente intrabanda (v_vv(kappa(t))) no contribuye: es par
 respecto al centro del pulso y E es impar (pulso sin(omega t) x sin^2, con int E dt = 0).
 Se resta j(0) porque, k a k, la velocidad de la banda llena no es nula.
 
-Requiere que A en Field.polarizedHarmonicElectricField sea la integral TRAPEZOIDAL de E
+Requiere que A en Field.PulsedField sea la integral TRAPEZOIDAL de E
 (A = -cumulative_trapezoid(E, dx=dt, initial=0)). Con A = -cumsum(E)*dt hay un desfase de
 medio paso entre A y E y la sigma sale ~1 % baja (error O(omega*dt/2)).
 
@@ -73,10 +73,10 @@ def malla_hexagonal(n):
 def campo(direccion, lambda_nm, n_ciclos, nptx, intensidad=1e8):
     """Pulso debil, lineal, E = E0 sin(omega t) sin^2(pi t/T): int E dt = 0.
     direccion 'x' (Gamma-M): chi=0;  'y' (Gamma-K): chi=pi/2."""
-    T0 = Field.lambda2T(lambda_nm*1e-9)
+    T0 = Field.lambda_to_T(lambda_nm*1e-9)
     tt = gr.UniformCartesianGrid(1, limits=[0, n_ciclos*T0], nptx=nptx)
-    return Field.polarizedHarmonicElectricField(
-        tt, I_W__cm2=intensidad, lambda0_nm=lambda_nm, phi_rad=-np.pi/2,
+    return Field.PulsedField(
+        tt, I_W__cm2=intensidad, lambda0_nm=lambda_nm, varphi_rad=-np.pi/2,
         chi_rad=0.0 if direccion == 'x' else np.pi/2, ellip=0.0,
         env=Field.env_sin2, env_parameters={'start': 0, 'end': 1, 'ton': 0.5, 'toff': 0.5})
 

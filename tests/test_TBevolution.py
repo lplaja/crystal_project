@@ -27,20 +27,20 @@ def test_TBevolution_Bloch_parameters():
                                                                         grid=ggr, species_name='graphene', threshold_hopping=0)
         
         lambda0=3000*1e-9
-        T0=Field.lambda2T(lambda0)
+        T0=Field.lambda_to_T(lambda0)
         tini=0*T0
         tfin=8*T0
         limits=[tini,tfin]
         nptx=32768
         tt=grid.UniformCartesianGrid(1,limits=limits, nptx=nptx)
 
-        fieldcallable=Field.polarizedHarmonicElectricField        
+        fieldcallable=Field.PulsedField        
         I_W__cm2=5e10
         env_params={'start' : 0, 'end' : 1, 'ton'   : 0.5, 'toff'  : 0.5 } # in units of the time grid
-        phi_rad=-1.5707963267948966
+        varphi_rad=-1.5707963267948966
         chi_rad=1.5707963267948966
         ellip=0
-        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, phi_rad=phi_rad, chi_rad=chi_rad,ellip=ellip)
+        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, varphi_rad=varphi_rad, chi_rad=chi_rad,ellip=ellip)
 
         TBev=TBevolution.TBevolution_Bloch(TBcr, Efield)
         
@@ -68,20 +68,20 @@ def test_TBevolution_Bloch_bands():
                                                                         grid=ggr, species_name='graphene', threshold_hopping=0)
         
         lambda0=3000*1e-9
-        T0=Field.lambda2T(lambda0)
+        T0=Field.lambda_to_T(lambda0)
         tini=0*T0
         tfin=8*T0
         limits=[tini,tfin]
         nptx=32768
         tt=grid.UniformCartesianGrid(1,limits=limits, nptx=nptx)
 
-        fieldcallable=Field.polarizedHarmonicElectricField        
+        fieldcallable=Field.PulsedField        
         I_W__cm2=5e10
         env_params={'start' : 0, 'end' : 1, 'ton'   : 0.5, 'toff'  : 0.5 } # in units of the time grid
-        phi_rad=-1.5707963267948966
+        varphi_rad=-1.5707963267948966
         chi_rad=1.5707963267948966
         ellip=0
-        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, phi_rad=phi_rad, chi_rad=chi_rad,ellip=ellip)
+        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, varphi_rad=varphi_rad, chi_rad=chi_rad,ellip=ellip)
 
         TBev=TBevolution.TBevolution_Bloch(TBcr, Efield)
 
@@ -119,20 +119,20 @@ def test_grad_t_nm_matches_finite_difference():
                                                                         grid=ggr, species_name='graphene', threshold_hopping=0)
         
         lambda0=3000*1e-9
-        T0=Field.lambda2T(lambda0)
+        T0=Field.lambda_to_T(lambda0)
         tini=0*T0
         tfin=8*T0
         limits=[tini,tfin]
         nptx=32768
         tt=grid.UniformCartesianGrid(1,limits=limits, nptx=nptx)
 
-        fieldcallable=Field.polarizedHarmonicElectricField        
+        fieldcallable=Field.PulsedField        
         I_W__cm2=5e10
         env_params={'start' : 0, 'end' : 1, 'ton'   : 0.5, 'toff'  : 0.5 } # in units of the time grid
-        phi_rad=-1.5707963267948966
+        varphi_rad=-1.5707963267948966
         chi_rad=1.5707963267948966
         ellip=0
-        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, phi_rad=phi_rad, chi_rad=chi_rad,ellip=ellip)
+        Efield=fieldcallable(tt,I_W__cm2=I_W__cm2,lambda0_nm=lambda0*1e9, env=Field.env_sin2, env_parameters=env_params, varphi_rad=varphi_rad, chi_rad=chi_rad,ellip=ellip)
 
         TBev=TBevolution.TBevolution_Bloch(TBcr, Efield)
 
