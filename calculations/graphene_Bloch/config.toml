@@ -31,7 +31,7 @@
     radius = 0.27100271  # 2/3/a
 
 [Field]
-    type ='polarizedHarmonicElectricField'
+    type ='PulsedField'
     I_W__cm2 = 5e10 # intensity
     lambda = 3000  # wavelength in nm
     varphi = -1.5707963267948966 # -pi/2

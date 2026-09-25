@@ -68,9 +68,9 @@ def evolucion(direccion, signo, nptx=NPT_TIEMPO, n=N_K):
     phi = -np.pi/2 if signo > 0 else np.pi/2
     g = malla(n)
     crystal = cr.crystal.from_W90_TB_file(filename=W90_FILE, grid=g, species_name='graphene', threshold_hopping=0)
-    T0 = Field.lambda2T(LAMBDA_NM*1e-9)
+    T0 = Field.lambda_to_T(LAMBDA_NM*1e-9)
     tt = gr.UniformCartesianGrid(1, limits=[0, N_CICLOS*T0], nptx=nptx)
-    campo = Field.polarizedHarmonicElectricField(
+    campo = Field.PulsedField(
         tt, I_W__cm2=INTENSIDAD, lambda0_nm=LAMBDA_NM, varphi_rad=phi, chi_rad=chi, ellip=0.0,
         env=Field.env_sin2, env_parameters={'start': 0, 'end': 1, 'ton': 0.5, 'toff': 0.5})
     TBev = TBevolution.TBevolution_Bloch(crystal, campo)

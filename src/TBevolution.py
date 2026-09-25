@@ -1,7 +1,7 @@
 import numpy as np
 import grid as gr
 import TBcrystal as cr
-from Field import PolarizedHarmonicField
+from Field import PulsedField
 from scipy.constants import hbar, elementary_charge, eV
 import logging
 import time
@@ -278,7 +278,7 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
 
 class TBevolution_CMCP:
 
-    def __init__(self, crystal:cr.crystal, Field:PolarizedHarmonicField):
+    def __init__(self, crystal:cr.crystal, Field:PulsedField):
 
         if not crystal.grid.cartesian:
             raise ValueError("crystal.grid must be cartesian")
@@ -433,7 +433,7 @@ class TBevolution_CMCP:
             gradCM_y=(CM_py-CM_my)/(2*dk)
             gradCP_y=(CP_py-CP_my)/(2*dk)
 
-            time_dip[min(it//istep+1, len(dipole_x)-1)]=self.Field.t[it+istep,0]
+            time_dip[min(it//istep+1, len(dipole_x)-1)]=self.Field.t[it+istep]
             dipole_x[min(it//istep+1, len(dipole_x)-1)]=1j*qe/2*np.sum((np.conj(CMw)*gradCM_x+np.conj(CPw)*gradCP_x)*self.dV)
             dipole_y[min(it//istep+1, len(dipole_x)-1)]=1j*qe/2*np.sum((np.conj(CMw)*gradCM_y+np.conj(CPw)*gradCP_y)*self.dV)
         
@@ -441,7 +441,7 @@ class TBevolution_CMCP:
 
 class TBevolution_Bloch:
 
-    def __init__(self, crystal:cr.crystal, Field:PolarizedHarmonicField):
+    def __init__(self, crystal:cr.crystal, Field:PulsedField):
 
         if not crystal.grid.cartesian:
             raise ValueError("crystal.grid must be cartesian")
@@ -570,7 +570,7 @@ class TBevolution_Bloch:
         time_dip = np.zeros(npt, dtype=np.float64)
         v = np.zeros((npt, 3), dtype=np.complex128)  # v[:,0]=vx, v[:,1]=vy, v[:,2]=vz
 
-        time_dip[0] = self.Field.t[0, 0]
+        time_dip[0] = self.Field.t[0]
         v[0] = self._velocity(CBw, *self._kappa(0))
 
         for it in range(0, imax, istep):
@@ -580,7 +580,7 @@ class TBevolution_Bloch:
             CBw = self.rk_evolve(CBw, kx, ky, kz, it, it+istep)
 
             idx = min(it//istep+1, npt-1)
-            time_dip[idx] = self.Field.t[it+istep, 0]
+            time_dip[idx] = self.Field.t[it+istep]
             v[idx] = self._velocity(CBw, *self._kappa(it+istep))
 
         return time_dip, v[:, 0], v[:, 1], v[:, 2]

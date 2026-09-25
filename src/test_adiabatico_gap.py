@@ -63,9 +63,9 @@ def simula_y_referencia(direccion):
     c = cr.crystal.from_W90_TB_file(W90_FILE, malla_hexagonal(N_MALLA), 'graphene', 0)
     c.h_Rnm[c.ir0, 0, 0] = +DELTA_EV          # A: +Delta ; B: -Delta   (gap 2 Delta en K y K')
     c.h_Rnm[c.ir0, 1, 1] = -DELTA_EV
-    T0 = Field.lambda2T(LAMBDA_NM*1e-9)
+    T0 = Field.lambda_to_T(LAMBDA_NM*1e-9)
     tt = gr.UniformCartesianGrid(1, limits=[0, N_CICLOS*T0], nptx=NPTX)
-    f = Field.polarizedHarmonicElectricField(
+    f = Field.PulsedField(
         tt, I_W__cm2=INTENSIDAD, lambda0_nm=LAMBDA_NM, env=Field.env_sin2,
         env_parameters={'start': 0, 'end': 1, 'ton': 0.5, 'toff': 0.5},
         varphi_rad=-np.pi/2, chi_rad=0.0 if direccion == 'x' else np.pi/2, ellip=0.0)
