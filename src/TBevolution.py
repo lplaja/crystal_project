@@ -46,84 +46,41 @@ def _fk(kx,ky,a):
     fk=np.exp(-1j*kdota0a1/3)*(1+np.exp(1j*kdota0)+np.exp(1j*kdota1))
     return fk
 
-#@njit(parallel=False)
+def _phases(kx, ky, kz, R):
+    """exp(2 pi i k.R) for every k point and lattice vector R, shape (n_k, n_R).
+    k in 1/A WITHOUT 2 pi, R in A (cartesian)."""
+    return np.exp(2j*np.pi*(np.outer(kx, R[:, 0]) + np.outer(ky, R[:, 1]) + np.outer(kz, R[:, 2])))
+
+
+def _fourier(P, R, X_R, a=None):
+    """Lattice Fourier sum  X(k - a) = sum_R exp(2 pi i (k - a).R) X_R[R, ...]  for every k.
+
+    P = _phases(k) (n_k, n_R);  X_R: (n_R, n_orb, n_orb) or (n_R, n_orb, n_orb, 3);  a: shift (3,) in 1/A.
+    exp(2 pi i (k-a).R) = exp(2 pi i k.R) exp(-2 pi i a.R): the shift only multiplies X_R by n_R phases,
+    so P can be computed once and reused for every a. The sum over R is a single matrix product.
+    Returns shape (n_orb, n_orb, n_k) or (n_orb, n_orb, n_k, 3)."""
+    n_k, n_R = P.shape
+    X = X_R.reshape(n_R, -1)                                   # (n_R, n_orb*n_orb[*3])
+    if a is not None:
+        X = np.exp(-2j*np.pi*(R @ a))[:, None]*X
+    out = (P @ X).reshape((n_k,) + X_R.shape[1:])              # (n_k, n_orb, n_orb[, 3])
+    return np.moveaxis(out, 0, 2)                              # (n_orb, n_orb, n_k[, 3])
+
+
 def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
-    n_orb=h_Rnm.shape[1]
-    n_k=len(kx)
-    n_R = R.shape[0]
+    """H(k) = sum_R h_R exp(2 pi i k.R), shape (n_orb, n_orb, n_k). (deltas unused: Wannier gauge)"""
+    return _fourier(_phases(kx, ky, kz, R), R, h_Rnm)
 
-    t=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
-    for n in range(n_orb):
-        for m in range(n_orb):
-            tnm_vector=h_Rnm[:,n,m]
-            arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
 
-            for iR in range(n_R):
-                #R_delta=R[iR]+deltas[m]-deltas[n]
-                R_delta=R[iR]
-                arg_exp[iR, :] = (
-                    1j * 2 * np.pi * kx * R_delta[0] +
-                    1j * 2 * np.pi * ky * R_delta[1] +
-                    1j * 2 * np.pi * kz * R_delta[2]
-                )
+def _grad_t_nm(dim,kx,ky,kz,h_Rnm, deltas, R):
+    """dH/dk_dim = sum_R 2 pi i R_dim h_R exp(2 pi i k.R), shape (n_orb, n_orb, n_k); k without 2 pi."""
+    return _fourier(_phases(kx, ky, kz, R), R, 2j*np.pi*R[:, dim, None, None]*h_Rnm)
 
-            exp=np.exp(arg_exp)
-            t[n,m]=np.dot(exp.T, tnm_vector)
-    return t
 
-@njit(parallel=False)
-def _grad_t_nm(dim,kx,ky,kz,h_Rnm, deltas, R):  # coputes the gradient in the direction dim
-    n_orb=h_Rnm.shape[1]
-    n_k=len(kx)
-    n_R = R.shape[0]
-
-    grad_t=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
-    for n in range(n_orb):
-        for m in range(n_orb):
-            tnm_vector=h_Rnm[:,n,m]
-
-            arg_exp = np.zeros((n_R, n_k), dtype=np.complex128)
-
-            for iR in range(n_R):
-                #R_delta=R[iR]+deltas[m]-deltas[n]
-                R_delta=R[iR]
-                arg_exp[iR, :] = (
-                    1j * 2 * np.pi * kx * R_delta[0] +
-                    1j * 2 * np.pi * ky * R_delta[1] +
-                    1j * 2 * np.pi * kz * R_delta[2]
-                )
-
-            exp=np.exp(arg_exp)
-            grad_t[n,m]=1j*2*np.pi*np.dot(exp.T, R[:,dim]*tnm_vector)
-    return grad_t
-
-@njit(parallel=False)
 def _r_nm(kx,ky,kz,r_Rnm, R):
-    n_orb=r_Rnm.shape[1]
-    n_k=len(kx)
-    n_R = R.shape[0]
+    """r(k) = sum_R r_R exp(2 pi i k.R), shape (n_orb, n_orb, n_k, 3)."""
+    return _fourier(_phases(kx, ky, kz, R), R, r_Rnm)
 
-    r=np.empty((n_orb,n_orb,n_k,3), dtype=np.complex128)
-    for n in range(n_orb):
-        for m in range(n_orb):
-            rnm_x_vector=r_Rnm[:,n,m,0]
-            rnm_y_vector=r_Rnm[:,n,m,1]
-            rnm_z_vector=r_Rnm[:,n,m,2]
-            arg_exp= np.zeros((n_R, n_k), dtype=np.complex128)
-
-            for iR in range(n_R):
-                R_delta=R[iR]
-                arg_exp[iR, :] = (
-                    1j * 2 * np.pi * kx * R_delta[0] +
-                    1j * 2 * np.pi * ky * R_delta[1] +
-                    1j * 2 * np.pi * kz * R_delta[2]
-                )
-
-            exp=np.exp(arg_exp)
-            r[n,m,:,0]=np.dot(exp.T, rnm_x_vector)
-            r[n,m,:,1]=np.dot(exp.T, rnm_y_vector)
-            r[n,m,:,2]=np.dot(exp.T, rnm_z_vector)
-    return r
 
 #@njit(parallel=True)
 def _eigen_hermitian(t_nm):
@@ -194,7 +151,9 @@ def _rk_evolveCMCP(CM, CP, kx,ky, Ax, Ay, dt, a, gamma0, from_it:int, to_it:int)
 
 
 #@njit(parallel=False)
-def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, deltas, R, from_it:int, to_it:int):
+def _rk_evolveCB(CB, P, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, R, from_it:int, to_it:int):
+    """RK4 from from_it to to_it. P = _phases(k) of the unshifted k grid; H and r at kappa = k - a(t),
+    a(t) = (qe/hbar) A(t), are obtained with _fourier(P, R, ..., a) (no exponential of size n_k per step)."""
 
     itmax=len(Ax)
 
@@ -202,11 +161,6 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
 
     c_qe__hbar=qe/hbar
     c1=-dt*1j/hbar
-
-    n_orb=h_Rnm.shape[1]
-    n_k=len(kx)
-    tnm=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
-    tnm_dt=np.empty((n_orb,n_orb,n_k), dtype=np.complex128)
 
     for it in range(from_it,to_it):
         norm_At_x=c_qe__hbar*Ax[it]
@@ -238,29 +192,18 @@ def _rk_evolveCB(CB, kx,ky, kz, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, delta
         qFtdt2_y=(qFtdt_y+qFt_y)/2
         qFtdt2_z=(qFtdt_z+qFt_z)/2
 
-        if it==from_it:
-            ktx=kx-norm_At_x
-            kty=ky-norm_At_y
-            ktz=kz-norm_At_z
-            tnm=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
-            rnm=_r_nm(ktx,kty,ktz, r_Rnm, R)
-            ktx=kx-norm_Atdt_x
-            kty=ky-norm_Atdt_y
-            ktz=kz-norm_Atdt_z
-            tnm_dt=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
-            rnm_dt=_r_nm(ktx,kty,ktz, r_Rnm, R)
-            tnm_dt2=(tnm_dt+tnm)/2
-            rnm_dt2=(rnm_dt+rnm)/2
+        if it==from_it:                                  # H, r at t (later steps reuse those at t+dt)
+            a_t=np.array([norm_At_x, norm_At_y, norm_At_z])
+            tnm=_fourier(P, R, h_Rnm, a_t)
+            rnm=_fourier(P, R, r_Rnm, a_t)
         else:
             tnm=tnm_dt
             rnm=rnm_dt
-            ktx=kx-norm_Atdt_x
-            kty=ky-norm_Atdt_y
-            ktz=kz-norm_Atdt_z
-            tnm_dt=_t_nm(ktx,kty,ktz, h_Rnm, deltas, R)
-            rnm_dt=_r_nm(ktx,kty,ktz, r_Rnm, R)
-            tnm_dt2=(tnm_dt+tnm)/2
-            rnm_dt2=(rnm_dt+rnm)/2
+        a_tdt=np.array([norm_Atdt_x, norm_Atdt_y, norm_Atdt_z])  # H, r at t+dt
+        tnm_dt=_fourier(P, R, h_Rnm, a_tdt)
+        rnm_dt=_fourier(P, R, r_Rnm, a_tdt)
+        tnm_dt2=(tnm_dt+tnm)/2
+        rnm_dt2=(rnm_dt+rnm)/2
 
         Mnm=tnm-qFt_x*rnm[...,0]-qFt_y*rnm[...,1]-qFt_z*rnm[...,2]
         K1=c1*(np.einsum('nmi,mi->ni', Mnm, CB, optimize=True))
@@ -537,7 +480,8 @@ class TBevolution_Bloch:
 
         Ax, Ay, Az, Ex, Ey, Ez = self._field_components()
 
-        CB=_rk_evolveCB(CB, kx,ky,kz, Ax, Ay, Az, Ex, Ey, Ez, self.Field.dt, self.h_Rnm, self.r_Rnm, self.deltas, self.R, from_it, to_it)
+        P=_phases(kx, ky, kz, self.R)                    # once per call, reused in every time step
+        CB=_rk_evolveCB(CB, P, Ax, Ay, Az, Ex, Ey, Ez, self.Field.dt, self.h_Rnm, self.r_Rnm, self.R, from_it, to_it)
 
         return CB
 
@@ -599,6 +543,8 @@ class TBevolution_Bloch:
         """
         imax = len(self.Field.t)
         istep = imax//npt
+        start = time.time()                                  
+        log_every = max(1, npt//20)                 # progress in the log every ~5 %
 
         CBw = self.CB.copy()
         kx, ky, kz = self.k[:, 0], self.k[:, 1], self.k[:, 2]
@@ -612,6 +558,11 @@ class TBevolution_Bloch:
         for it in range(0, imax, istep):
             if it+istep >= imax:
                 break
+            if idx % log_every == 0:
+                elapsed = time.time() - start
+                remaining = elapsed*(imax - it - istep)/(it + istep)
+                logger.info(f"step {it+istep}/{imax} ({100*(it+istep)/imax:.0f} %)   "
+                                f"elapsed {timedelta(seconds=round(elapsed))}   remaining {timedelta(seconds=round(remaining))}")
 
             CBw = self.rk_evolve(CBw, kx, ky, kz, it, it+istep)
 
