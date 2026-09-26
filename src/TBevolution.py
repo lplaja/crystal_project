@@ -554,21 +554,23 @@ class TBevolution_Bloch:
 
         time_dip[0] = self.Field.t[0]
         v[0] = self._velocity(CBw, *self._kappa(0))
+        logger.info(f"step 0/{imax} (0 %)   evolution started: {npt} samples, every {istep} time steps, "
+                    f"{len(self.k)} k points")
 
         for it in range(0, imax, istep):
             if it+istep >= imax:
                 break
-            if idx % log_every == 0:
-                elapsed = time.time() - start
-                remaining = elapsed*(imax - it - istep)/(it + istep)
-                logger.info(f"step {it+istep}/{imax} ({100*(it+istep)/imax:.0f} %)   "
-                                f"elapsed {timedelta(seconds=round(elapsed))}   remaining {timedelta(seconds=round(remaining))}")
-
             CBw = self.rk_evolve(CBw, kx, ky, kz, it, it+istep)
 
             idx = min(it//istep+1, npt-1)
             time_dip[idx] = self.Field.t[it+istep]
             v[idx] = self._velocity(CBw, *self._kappa(it+istep))
+
+            if idx % log_every == 0:
+                elapsed = time.time() - start
+                remaining = elapsed*(imax - it - istep)/(it + istep)
+                logger.info(f"step {it+istep}/{imax} ({100*(it+istep)/imax:.0f} %)   "
+                                f"elapsed {timedelta(seconds=round(elapsed))}   remaining {timedelta(seconds=round(remaining))}")
 
         vd = self.spin_degeneracy*qe*self.cell_size*v   # dipole velocity per unit cell, C m/s
         return time_dip, vd[:, 0], vd[:, 1], vd[:, 2]

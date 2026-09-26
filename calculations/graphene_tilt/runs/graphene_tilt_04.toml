@@ -1,7 +1,8 @@
-# GENERATED from tilt_config.xtoml on 2026-09-26 11:37:15 -- do not edit (edit the .xtoml and regenerate)
+# GENERATED from tilt_config.xtoml on 2026-09-26 13:56:03 -- do not edit (edit the .xtoml and regenerate)
+# sweep point 4 of 5: Field.chi = 0.5235987755982988
 
 [calculation]
-ID = "tiltq"
+ID = "tilt_04"
 type = "TBevolution_Bloch"
 
 [crystal]
@@ -35,7 +36,7 @@ field_type = "E"
 I_W__cm2 = 50000000000.0
 lambda = 3000
 varphi = -1.5707963267948966
-chi = 0.0
+chi = 0.5235987755982988
 ellip = 0
 
 [Field.env]
