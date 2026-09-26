@@ -1,0 +1,63 @@
+# GENERATED from tilt_config.xtoml on 2026-09-26 13:56:03 -- do not edit (edit the .xtoml and regenerate)
+# sweep point 1 of 5: Field.chi = 0.1308996938995747
+
+[calculation]
+ID = "tilt_01"
+type = "TBevolution_Bloch"
+
+[crystal]
+name = "graphene"
+W90filename = "/home/lplaja/crystal_project/calculations/Wannier90 data/gr1NN_tb.dat"
+threshold_hopping = 0
+a = 2.46
+dim = 2
+
+[BZ]
+nkx = 500
+kx_min = -0.3048780487804878
+kx_max = 0.3048780487804878
+nky = 500
+ky_min = -0.3048780487804878
+ky_max = 0.3048780487804878
+nkz = 1
+kz_min = 0.0
+kz_max = 0.0
+
+[BZ.filter]
+type = "polygonfilter"
+
+[BZ.filter.args]
+nsides = 6
+radius = 0.27100271002710025
+
+[Field]
+type = "PulsedField"
+field_type = "E"
+I_W__cm2 = 50000000000.0
+lambda = 3000
+varphi = -1.5707963267948966
+chi = 0.1308996938995747
+ellip = 0
+
+[Field.env]
+type = "env_sin2"
+
+[Field.env.args]
+start = 0
+end = 1
+ton = 0.5
+toff = 0.5
+
+[time]
+tini = 0
+tfin = 8
+nt = 32768
+
+[evolver]
+type = "TBevolution_Bloch"
+
+[evolver.calculation]
+type = "dipole_velocity"
+
+[evolver.calculation.args]
+nt = 512
