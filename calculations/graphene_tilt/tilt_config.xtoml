@@ -27,7 +27,7 @@
 # Sweep over Oscar's tilts (0, 15 and 30 degrees from Gamma-K -> chi = 90, 75, 60 degrees)
 
 [calculation]
-    ID   = 'tilt_oscar'
+    ID   = 'tiltq'
     type = 'TBevolution_Bloch'
 
 [crystal]
@@ -61,7 +61,8 @@
     I_W__cm2   = 5e10
     lambda     = 3000                    # nm
     varphi     = "python(-np.pi/2)"      # CEP
-    chi        = { sweep = "python(np.deg2rad(np.linspace(0,30,num=5)))" }
+    # chi        = { sweep = "python(np.deg2rad(np.linspace(0,30,num=5)))" }
+    chi        = "python(np.deg2rad(0))"
     ellip      = 0
 
 [Field.env]
