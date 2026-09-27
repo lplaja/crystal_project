@@ -372,6 +372,7 @@ class TBevolution_Bloch:
         dim = self.crystal.grid.ndim
         a = np.asarray(self.crystal.direct_vectors, dtype=float)[:dim]
         self.cell_size = np.sqrt(np.linalg.det(a @ a.T))
+        self.w = self.dV*self.cell_size                 # dimensionless k weights: sum(w) = 1 for one Brillouin zone
         n_BZ = self.V*self.cell_size
         if abs(n_BZ - 1) > 0.1:
             warnings.warn(f"The k grid covers {n_BZ:.2f} Brillouin zones (sum dV = {self.V:.4g} 1/A^{dim}, "
@@ -480,33 +481,35 @@ class TBevolution_Bloch:
         return 1j/hbar * per_k
 
     def _velocity(self, CB, kxt, kyt, kzt):
-        """Brillouin-zone sum of the electron velocity, shape (3,), in A^-dim m/s:
+        """Brillouin-zone sum of the electron velocity with dimensionless weights, shape (3,), in m/s:
 
-            V = sum_k dV_k v_k          (v_k from _velocity_k, in m/s)
+            V = Σ_k w_k v_k,     w_k = cell_size·dV_k     (v_k from _velocity_k, in m/s)
 
-        dV_k is the k-grid cell in 1/A^dim, with k WITHOUT 2 pi (k = K/2pi), so that
-        sum_k dV_k ~ integral d^dK/(2 pi)^dim (number of states per A^dim, per spin) and, for a grid
-        covering one Brillouin zone, sum_k dV_k = 1/cell_size. V is the particle current density of the
-        band per spin. No spin, no charge."""
+        dV_k is the k-grid cell in Å⁻ᵈⁱᵐ (k WITHOUT 2π) and cell_size the unit cell in Åᵈⁱᵐ, so that
+        Σ_k w_k = 1 when the grid covers one Brillouin zone: V is the summed velocity of the electrons of
+        the band in one unit cell, per spin. No spin, no charge."""
         v_k = self._velocity_k(CB, kxt, kyt, kzt)
-        return np.einsum('ka,k->a', v_k, self.dV)
+        return np.einsum('ka,k->a', v_k, self.w)
 
     def rk_dipole_velocity(self, npt: int):
         """Evolve the Bloch amplitudes (RK4) and sample the dipole velocity per unit cell at npt times:
 
-            vd(t) = g_s q cell_size sum_k dV_k v_k(t)       in C m/s
+            vd(t) = g_s q Σ_k w_k v_k(t)       in C·m/s
 
-        v_k(t): velocity of the electron in state k at kappa(t) (see _velocity_k), in m/s
-        dV_k:   k-grid cell in 1/A^dim (k without 2 pi); cell_size: unit cell in A^dim, so that
-                cell_size * sum_k dV_k = 1 when the grid covers one Brillouin zone (then vd is the charge
-                times the summed velocity of the g_s electrons of the band in one unit cell)
+        v_k(t): velocity of the electron in state k at κ(t) (see _velocity_k), in m/s
+        w_k:    dimensionless k weights, cell_size·dV_k, with Σ_k w_k = 1 for one Brillouin zone
+                (see _velocity): vd is the charge times the summed velocity of the g_s electrons of the
+                band in one unit cell
         q = -e, g_s = spin_degeneracy (2 without spin-orbit)
-        Current density: j = vd / (cell_size * 1e-10**dim)  in A (1D), A/m (2D), A/m^2 (3D).
+        Current density: j = vd / (cell_size·1e-10**dim)  in A (1D), A/m (2D), A/m² (3D).
 
-        The dipole velocity is sampled every istep = len(t)//npt time steps: use len(t) multiple of npt.
+        The dipole velocity is sampled every istep = len(t)/npt time steps: len(t) must be a multiple of npt.
         Returns t (s) and the components vdx, vdy, vdz (complex arrays; the imaginary part is numerical noise).
         """
         imax = len(self.Field.t)
+        if imax % npt != 0:
+            # otherwise the loop produces more samples than npt and the extra ones overwrite the last slot
+            raise ValueError(f"the number of time steps ({imax}) must be a multiple of npt ({npt})")
         istep = imax//npt
         start = time.time()                                  
         log_every = max(1, npt//20)                 # progress in the log every ~5 %
@@ -527,7 +530,7 @@ class TBevolution_Bloch:
                 break
             CBw = self.rk_evolve(CBw, kx, ky, kz, it, it+istep)
 
-            idx = min(it//istep+1, npt-1)
+            idx = it//istep + 1                           # 1 ... npt-1
             time_dip[idx] = self.Field.t[it+istep]
             v[idx] = self._velocity(CBw, *self._kappa(it+istep))
 
@@ -537,5 +540,5 @@ class TBevolution_Bloch:
                 logger.info(f"step {it+istep}/{imax} ({100*(it+istep)/imax:.0f} %)   "
                                 f"elapsed {timedelta(seconds=round(elapsed))}   remaining {timedelta(seconds=round(remaining))}")
 
-        vd = self.spin_degeneracy*qe*self.cell_size*v   # dipole velocity per unit cell, C m/s
+        vd = self.spin_degeneracy*qe*v                  # dipole velocity per unit cell, C m/s
         return time_dip, vd[:, 0], vd[:, 1], vd[:, 2]
