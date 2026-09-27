@@ -1,3 +1,20 @@
+"""
+TBevolution.py -- time evolution of a tight-binding crystal (Wannier90 model) driven by a laser field.
+
+TBevolution_Bloch(crystal, Field) evolves the orbital amplitudes of the valence band with RK4;
+rk_dipole_velocity(npt) returns the dipole velocity per unit cell vd(t), the source of the HHG spectrum.
+
+Units
+-----
+Two systems with a single frontier; every quantity exists in ONE unit inside the evolver.
+  lattice units   k, κ = k - a(t) and a(t): Å⁻¹ WITHOUT 2π;  R: Å.
+                  They only enter the phase exp(2πi κ·R) of the lattice Fourier sums.
+                  K = RLU·k is the wavevector in m⁻¹, RLU = crystal.reciprocal_lattice_unit = 2π·1e10.
+  SI              everything else: H in J, r in m, E in V/m, t in s, v in m/s, vd in C·m/s.
+The conversions are done once:
+  __init__            h_Rnm: eV -> J;  r_Rnm: Å -> m;  k weights w_k = cell_size·dV_k (dimensionless)
+  _field_components   a = (q/ħ)·A/RLU  (A in V·s/m)  and  E in Cartesian axes (V/m)
+"""
 import numpy as np
 import TBcrystal as cr
 from Field import PulsedField
@@ -6,44 +23,37 @@ import logging
 import time
 from datetime import timedelta
 
-# logging.basicConfig(
-#     filename="graphene_TightBinding.log",
-#     filemode="w",
-#     level=logging.INFO,
-#     format="%(asctime)s %(levelname)s: %(message)s",
-# )
-
 logger = logging.getLogger(__name__)
 
 qe=-elementary_charge
 
 def polarization_frame(s_direction):
-    """Base ortonormal dextrogira (p, q, s) del campo.
-    s = direccion de propagacion (normalizada).
-    p = eje x proyectado perpendicular a s (normalizado)  -> componente 'paralela'.
-    q = s x p                                              -> componente 'perpendicular'.
-    Las columnas de Field.E y Field.A son (paralela, perpendicular, axial) = (p, q, s)."""
+    """Right-handed orthonormal frame (p, q, s) of the field, in Cartesian coordinates.
+    s = propagation direction (normalized).
+    p = x axis projected perpendicular to s (normalized)   -> 'parallel' component.
+    q = s x p                                              -> 'perpendicular' component.
+    The columns of Field.E and Field.A are (parallel, perpendicular, axial) = (p, q, s)."""
     s = np.asarray(s_direction, dtype=float)
     s = s/np.linalg.norm(s)
     p = np.array([1.0, 0.0, 0.0]) - s[0]*s
     norm_p = np.linalg.norm(p)
     if norm_p < 1e-12:
-        raise ValueError("s_direction paralela a x: no se puede definir la direccion paralela p")
+        raise ValueError("s_direction parallel to x: the parallel direction p cannot be defined")
     p = p/norm_p
     q = np.cross(s, p)
     return p, q, s
 
 def _phases(kx, ky, kz, R):
-    """exp(2 pi i k.R) for every k point and lattice vector R, shape (n_k, n_R).
-    k in 1/A WITHOUT 2 pi, R in A (cartesian)."""
+    """exp(2πi k·R) for every k point and lattice vector R, shape (n_k, n_R).
+    k in Å⁻¹ WITHOUT 2π, R in Å (Cartesian)."""
     return np.exp(2j*np.pi*(np.outer(kx, R[:, 0]) + np.outer(ky, R[:, 1]) + np.outer(kz, R[:, 2])))
 
 
 def _fourier(P, R, X_R, a=None):
-    """Lattice Fourier sum  X(k - a) = sum_R exp(2 pi i (k - a).R) X_R[R, ...]  for every k.
+    """Lattice Fourier sum  X(k - a) = Σ_R exp(2πi (k - a)·R) X_R[R, ...]  for every k.
 
-    P = _phases(k) (n_k, n_R);  X_R: (n_R, n_orb, n_orb) or (n_R, n_orb, n_orb, 3);  a: shift (3,) in 1/A.
-    exp(2 pi i (k-a).R) = exp(2 pi i k.R) exp(-2 pi i a.R): the shift only multiplies X_R by n_R phases,
+    P = _phases(k) (n_k, n_R);  X_R: (n_R, n_orb, n_orb) or (n_R, n_orb, n_orb, 3);  a: shift (3,) in Å⁻¹.
+    exp(2πi (k - a)·R) = exp(2πi k·R) exp(-2πi a·R): the shift only multiplies X_R by n_R phases,
     so P can be computed once and reused for every a. The sum over R is a single matrix product.
     Returns shape (n_orb, n_orb, n_k) or (n_orb, n_orb, n_k, 3)."""
     n_k, n_R = P.shape
@@ -55,22 +65,22 @@ def _fourier(P, R, X_R, a=None):
 
 
 def _t_nm(kx,ky,kz,h_Rnm, deltas, R):
-    """H(k) = sum_R h_R exp(2 pi i k.R), shape (n_orb, n_orb, n_k). (deltas unused: Wannier gauge)"""
+    """H(k) = Σ_R h_R exp(2πi k·R), shape (n_orb, n_orb, n_k). (deltas unused: Wannier gauge)"""
     return _fourier(_phases(kx, ky, kz, R), R, h_Rnm)
 
 
 def _grad_t_nm(dim,kx,ky,kz,h_Rnm, deltas, R):
-    """dH/dk_dim = sum_R 2 pi i R_dim h_R exp(2 pi i k.R), shape (n_orb, n_orb, n_k); k without 2 pi."""
+    """∂H/∂k_dim = Σ_R 2πi R_dim h_R exp(2πi k·R), shape (n_orb, n_orb, n_k); k without 2π."""
     return _fourier(_phases(kx, ky, kz, R), R, 2j*np.pi*R[:, dim, None, None]*h_Rnm)
 
 
 def _r_nm(kx,ky,kz,r_Rnm, R):
-    """r(k) = sum_R r_R exp(2 pi i k.R), shape (n_orb, n_orb, n_k, 3)."""
+    """r(k) = Σ_R r_R exp(2πi k·R), shape (n_orb, n_orb, n_k, 3)."""
     return _fourier(_phases(kx, ky, kz, R), R, r_Rnm)
 
 
 def _eigen_hermitian(t_nm):
-
+    """Eigenvalues (ascending) and eigenvectors of H(k) at every k: shapes (n_orb, n_k) and (n_orb, n_orb, n_k)."""
     t_nm = np.moveaxis(t_nm, -1, 0)          # (N_k, N_orb, N_orb)
     energies, eigvecs = np.linalg.eigh(t_nm)
     # energies: (N_k, N_orb), eigvecs: (N_k, N_orb, N_orb)
@@ -82,10 +92,10 @@ def _eigen_hermitian(t_nm):
 def _rk_evolveCB(CB, P, a, E, dt, h_Rnm, r_Rnm, R, from_it:int, to_it:int):
     """RK4 evolution of the orbital amplitudes CB from time index from_it to to_it.
 
-    P = _phases(k) of the unshifted k grid.  a, E: (n_t, 3) from _field_components (a in 1/A without
-    2 pi, E in V/m).  H and r at kappa = k - a(t) are obtained with _fourier(P, R, ..., a), which only
+    P = _phases(k) of the unshifted k grid.  a, E: (n_t, 3) from _field_components (a in Å⁻¹ without
+    2π, E in V/m).  H and r at κ = k - a(t) are obtained with _fourier(P, R, ..., a), which only
     rotates the n_R coefficients (no exponential of size n_k per step).
-    Matrix used in every RK stage: M = H(kappa) - q E.r(kappa), in J."""
+    Matrix used in every RK stage: M = H(κ) - q E·r(κ), in J."""
     to_it = min(to_it, len(a) - 1)                   # the step it -> it+1 needs the field at it+1
     qE = qe*E                                        # (n_t, 3), J/m
     c1 = -dt*1j/hbar
@@ -131,9 +141,9 @@ class TBevolution_Bloch:
         self.dV=self.crystal.grid.dV[self.crystal.grid.inGrid]
         self.V=np.sum(self.dV)
 
-        # Size of the unit cell (length, area or volume, in A^dim) spanned by the first dim direct vectors:
-        # sqrt of the Gram determinant, valid for dim = 1, 2, 3 (|a1|, |a1 x a2|, |a1.(a2 x a3)|).
-        # A k grid covering exactly one Brillouin zone has sum_k dV = 1/cell_size (k without 2 pi).
+        # Size of the unit cell (length, area or volume, in Åᵈⁱᵐ) spanned by the first dim direct vectors:
+        # sqrt of the Gram determinant, valid for dim = 1, 2, 3 (|a1|, |a1 x a2|, |a1·(a2 x a3)|).
+        # A k grid covering exactly one Brillouin zone has Σ_k dV = 1/cell_size (k without 2π).
         self.spin_degeneracy = spin_degeneracy
         dim = self.crystal.grid.ndim
         a = np.asarray(self.crystal.direct_vectors, dtype=float)[:dim]
@@ -149,38 +159,37 @@ class TBevolution_Bloch:
         if self.crystal.grid.ndim == 2:
             if Field.s_direction[0]!= 0 or Field.s_direction[1]!= 0:
                 raise ValueError("s_direction must be [0,0,1], orthogonal to the xy plane")
-            # Añadir columna de ceros para kz
+            # add a column of zeros for kz
             kz = np.zeros((self.k.shape[0], 1), dtype=np.float64)
             self.k = np.column_stack([self.k, kz])
         elif self.crystal.grid.ndim == 1:
             if Field.s_direction[0]!= 0:
                 raise ValueError("s_direction must be orthogonal to x")
-            # Añadir columnas de ceros para kz y ky
+            # add columns of zeros for ky and kz
             kz = np.zeros((self.k.shape[0], 1), dtype=np.float64)
             ky = np.zeros((self.k.shape[0], 1), dtype=np.float64)
             self.k = np.column_stack([self.k, ky, kz])
 
-        self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to J and apply degeneracy weights
-        self.r_Rnm=self.crystal.r_Rnm* self.crystal.direct_lattice_unit               # length: Å → m
+        self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # eV -> J, divided by the Wigner-Seitz degeneracy weights
+        self.r_Rnm=self.crystal.r_Rnm* self.crystal.direct_lattice_unit               # Å -> m
 
-        self.R=cr.vector_in_cart(self.crystal.R_vectors, self.crystal.direct_vectors) # coordinate of the WZ cell in cartesian
+        self.R=cr.vector_in_cart(self.crystal.R_vectors, self.crystal.direct_vectors) # lattice vectors R in Cartesian coordinates, Å
 
         self.deltas=self.crystal.deltas
         self.num_wann=self.crystal.num_wann
         self.nrpts=self.crystal.nrpts
 
-        self.a, self.E_xyz = self._field_components()  # k shift (1/A without 2 pi) and E (V/m), (n_t, 3)
+        self.a, self.E_xyz = self._field_components()  # k shift (Å⁻¹ without 2π) and E (V/m), (n_t, 3)
 
         kx=self.k[:,0]
         ky=self.k[:,1]
         kz=self.k[:,2]
 
-        # set the initial amplitudes of the Bloch states.
-        # As all the population is in the lower band, the Bloch state aplitudes correspond to the
-        # lower band amplitudes. CB has the coeficients for the orbitals in each column
+        # initial amplitudes: all the population in the lowest band (valence band).
+        # CB[:, k] are the orbital coefficients of the state at k (one column per k point)
 
         _,CB=self.bands(kx,ky,kz)
-        self.CB=CB[:,0,:]  # banda de menor energia (eigh ordena ascendente): toda la poblacion en la banda de valencia
+        self.CB=CB[:,0,:]  # lowest band: eigh returns the eigenvalues in ascending order
 
     def __repr__(self):
         info=f"# {self.__class__.__name__}:  id= {id(self):x} \n"
@@ -194,7 +203,7 @@ class TBevolution_Bloch:
         return _t_nm(kx, ky, kz, self.h_Rnm, self.deltas, self.R)
 
     def grad_tnm(self,dim,kx,ky,kz):
-        return _grad_t_nm(dim,kx,ky,kz,self.h_Rnm, self.deltas, self.R)# coputes the gradient in the direction dim
+        return _grad_t_nm(dim,kx,ky,kz,self.h_Rnm, self.deltas, self.R)# ∂H/∂k along direction dim
 
     def rnm(self,kx,ky,kz):
         return _r_nm(kx, ky, kz, self.r_Rnm, self.R)
@@ -203,9 +212,9 @@ class TBevolution_Bloch:
         """Field in Cartesian axes (x, y, z) at every time step, as used by the evolution.
 
         Returns
-            a : (n_t, 3) shift of the crystal momentum, kappa(t) = k - a(t), in 1/A WITHOUT 2 pi
-                (the units of k):  a = (q/hbar) A / RLU,  A in V s/m, RLU = reciprocal_lattice_unit
-                (2 pi 1e10 1/m per 1/A: K = RLU k is the wavevector in 1/m)
+            a : (n_t, 3) shift of the crystal momentum, κ(t) = k - a(t), in Å⁻¹ WITHOUT 2π
+                (the units of k):  a = (q/ħ) A / RLU,  A in V·s/m, RLU = reciprocal_lattice_unit
+                (2π·1e10 m⁻¹ per Å⁻¹: K = RLU·k is the wavevector in m⁻¹)
             E : (n_t, 3) electric field, V/m
         Field.A and Field.E have columns (parallel, perpendicular, axial), along the vectors (p, q, s)
         of polarization_frame(s_direction)."""
@@ -222,20 +231,20 @@ class TBevolution_Bloch:
         return _rk_evolveCB(CB, P, self.a, self.E_xyz, self.Field.dt, self.h_Rnm, self.r_Rnm, self.R, from_it, to_it)
 
     def _kappa(self, it):
-        """kappa(t) = k - a(t) at time index it, in 1/A without 2 pi (components kx, ky, kz)."""
+        """κ(t) = k - a(t) at time index it, in Å⁻¹ without 2π (components kx, ky, kz)."""
         kappa = self.k - self.a[it]
         return kappa[:, 0], kappa[:, 1], kappa[:, 2]
 
     def _velocity_k(self, CB, kxt, kyt, kzt):
         """Velocity of the electron in the state of every k point, shape (n_k, 3), in m/s:
 
-            v_k = < C_k | (1/hbar) dH/dK + (i/hbar) [H, r] | C_k >        evaluated at kappa
+            v_k = ⟨C_k| (1/ħ) ∂H/∂K + (i/ħ) [H, r] |C_k⟩        evaluated at κ
 
-        H(kappa) = sum_R h_R exp(2 pi i kappa.R)   (orbital basis, J)
-        r(kappa) = sum_R r_R exp(2 pi i kappa.R)   (Wannier position matrix, m)
-        kappa = (kxt, kyt, kzt) = k - (q/hbar) A(t), given by the caller, in 1/A WITHOUT 2 pi;
-        K = 2 pi kappa is the wavevector in 1/m: dH/dK = grad_tnm / reciprocal_lattice_unit (J m).
-        The two terms come from the position operator in the Bloch representation, x = i d/dK + r(K):
+        H(κ) = Σ_R h_R exp(2πi κ·R)   (orbital basis, J)
+        r(κ) = Σ_R r_R exp(2πi κ·R)   (Wannier position matrix, m)
+        κ = (kxt, kyt, kzt) = k - a(t), given by the caller (see _kappa), in Å⁻¹ WITHOUT 2π;
+        K = RLU·κ is the wavevector in m⁻¹: ∂H/∂K = grad_tnm / RLU (J·m), RLU = reciprocal_lattice_unit.
+        The two terms come from the position operator in the Bloch representation, x = i ∂/∂K + r(K):
         group velocity (intraband) and commutator with the Wannier position matrix (interband).
         C_k = CB[:, k] are the orbital amplitudes, normalized to 1: velocity of ONE electron.
         No dV weight, no spin, no charge."""
