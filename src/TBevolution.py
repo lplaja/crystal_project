@@ -150,72 +150,40 @@ def _rk_evolveCMCP(CM, CP, kx,ky, Ax, Ay, dt, a, gamma0, from_it:int, to_it:int)
     return CM, CP
 
 
-#@njit(parallel=False)
-def _rk_evolveCB(CB, P, Ax, Ay, Az, Ex, Ey, Ez, dt,  h_Rnm, r_Rnm, R, from_it:int, to_it:int):
-    """RK4 from from_it to to_it. P = _phases(k) of the unshifted k grid; H and r at kappa = k - a(t),
-    a(t) = (qe/hbar) A(t), are obtained with _fourier(P, R, ..., a) (no exponential of size n_k per step)."""
+def _rk_evolveCB(CB, P, a, E, dt, h_Rnm, r_Rnm, R, from_it:int, to_it:int):
+    """RK4 evolution of the orbital amplitudes CB from time index from_it to to_it.
 
-    itmax=len(Ax)
+    P = _phases(k) of the unshifted k grid.  a, E: (n_t, 3) from _field_components (a in 1/A without
+    2 pi, E in V/m).  H and r at kappa = k - a(t) are obtained with _fourier(P, R, ..., a), which only
+    rotates the n_R coefficients (no exponential of size n_k per step).
+    Matrix used in every RK stage: M = H(kappa) - q E.r(kappa), in J."""
+    to_it = min(to_it, len(a) - 1)                   # the step it -> it+1 needs the field at it+1
+    qE = qe*E                                        # (n_t, 3), J/m
+    c1 = -dt*1j/hbar
 
-    to_it=min(to_it, itmax)
-
-    c_qe__hbar=qe/hbar
-    c1=-dt*1j/hbar
-
-    for it in range(from_it,to_it):
-        norm_At_x=c_qe__hbar*Ax[it]
-        norm_At_y=c_qe__hbar*Ay[it]
-        norm_At_z=c_qe__hbar*Az[it]
-        qFt_x=qe*Ex[it]
-        qFt_y=qe*Ey[it]
-        qFt_z=qe*Ez[it]
-        if it==itmax:
-            norm_Atdt_x=c_qe__hbar*(2*Ax[itmax]-Ax[itmax-1]) # extrapolation
-            norm_Atdt_y=c_qe__hbar*(2*Ay[itmax]-Ay[itmax-1]) # extrapolation
-            norm_Atdt_z=c_qe__hbar*(2*Az[itmax]-Az[itmax-1]) # extrapolation
-            qFtdt_x=qe*(2*Ex[itmax]-Ex[itmax-1]) # extrapolation
-            qFtdt_y=qe*(2*Ey[itmax]-Ey[itmax-1]) # extrapolation
-            qFtdt_z=qe*(2*Ez[itmax]-Ez[itmax-1]) # extrapolation
+    for it in range(from_it, to_it):
+        if it == from_it:                            # H, r at t (later steps reuse those at t+dt)
+            tnm = _fourier(P, R, h_Rnm, a[it])
+            rnm = _fourier(P, R, r_Rnm, a[it])
         else:
-            norm_Atdt_x=c_qe__hbar*Ax[it+1]
-            norm_Atdt_y=c_qe__hbar*Ay[it+1]
-            norm_Atdt_z=c_qe__hbar*Az[it+1]
-            qFtdt_x=qe*Ex[it+1]
-            qFtdt_y=qe*Ey[it+1]
-            qFtdt_z=qe*Ez[it+1]
+            tnm, rnm = tnm_dt, rnm_dt
+        tnm_dt = _fourier(P, R, h_Rnm, a[it+1])      # H, r at t+dt
+        rnm_dt = _fourier(P, R, r_Rnm, a[it+1])
+        tnm_dt2 = (tnm_dt + tnm)/2                   # H, r and qE at t+dt/2: average of t and t+dt
+        rnm_dt2 = (rnm_dt + rnm)/2
+        qE_dt2 = (qE[it] + qE[it+1])/2
 
-        norm_Atdt2_x=(norm_Atdt_x+norm_At_x)/2
-        norm_Atdt2_y=(norm_Atdt_y+norm_At_y)/2
-        norm_Atdt2_z=(norm_Atdt_z+norm_At_z)/2
+        Mnm = tnm - rnm @ qE[it]                     # rnm (n, n, n_k, 3) @ (3,) -> (n, n, n_k)
+        K1 = c1*np.einsum('nmi,mi->ni', Mnm, CB, optimize=True)
 
-        qFtdt2_x=(qFtdt_x+qFt_x)/2
-        qFtdt2_y=(qFtdt_y+qFt_y)/2
-        qFtdt2_z=(qFtdt_z+qFt_z)/2
+        Mnm = tnm_dt2 - rnm_dt2 @ qE_dt2
+        K2 = c1*np.einsum('nmi,mi->ni', Mnm, CB + K1/2, optimize=True)
+        K3 = c1*np.einsum('nmi,mi->ni', Mnm, CB + K2/2, optimize=True)
 
-        if it==from_it:                                  # H, r at t (later steps reuse those at t+dt)
-            a_t=np.array([norm_At_x, norm_At_y, norm_At_z])
-            tnm=_fourier(P, R, h_Rnm, a_t)
-            rnm=_fourier(P, R, r_Rnm, a_t)
-        else:
-            tnm=tnm_dt
-            rnm=rnm_dt
-        a_tdt=np.array([norm_Atdt_x, norm_Atdt_y, norm_Atdt_z])  # H, r at t+dt
-        tnm_dt=_fourier(P, R, h_Rnm, a_tdt)
-        rnm_dt=_fourier(P, R, r_Rnm, a_tdt)
-        tnm_dt2=(tnm_dt+tnm)/2
-        rnm_dt2=(rnm_dt+rnm)/2
+        Mnm = tnm_dt - rnm_dt @ qE[it+1]
+        K4 = c1*np.einsum('nmi,mi->ni', Mnm, CB + K3, optimize=True)
 
-        Mnm=tnm-qFt_x*rnm[...,0]-qFt_y*rnm[...,1]-qFt_z*rnm[...,2]
-        K1=c1*(np.einsum('nmi,mi->ni', Mnm, CB, optimize=True))
-
-        Mnm=tnm_dt2-qFtdt2_x*rnm_dt2[...,0]-qFtdt2_y*rnm_dt2[...,1]-qFtdt2_z*rnm_dt2[...,2]
-        K2=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K1/2, optimize=True))
-        K3=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K2/2, optimize=True))
-
-        Mnm=tnm_dt-qFtdt_x*rnm_dt[...,0]-qFtdt_y*rnm_dt[...,1]-qFtdt_z*rnm_dt[...,2]
-        K4=c1*(np.einsum('nmi,mi->ni', Mnm, CB+K3, optimize=True))
-
-        CB+=K1/6+K2/3+K3/3+K4/6
+        CB += K1/6 + K2/3 + K3/3 + K4/6
 
     return CB
 
@@ -432,6 +400,8 @@ class TBevolution_Bloch:
         self.num_wann=self.crystal.num_wann
         self.nrpts=self.crystal.nrpts
 
+        self.a, self.E_xyz = self._field_components()  # k shift (1/A without 2 pi) and E (V/m), (n_t, 3)
+
         kx=self.k[:,0]
         ky=self.k[:,1]
         kz=self.k[:,2]
@@ -461,37 +431,31 @@ class TBevolution_Bloch:
         return _r_nm(kx, ky, kz, self.r_Rnm, self.R)
 
     def _field_components(self):
-        """Componentes cartesianas (x,y,z) del potencial vector A [dividido por
-        reciprocal_lattice_unit] y del campo electrico E [SI], en todos los instantes."""
+        """Field in Cartesian axes (x, y, z) at every time step, as used by the evolution.
+
+        Returns
+            a : (n_t, 3) shift of the crystal momentum, kappa(t) = k - a(t), in 1/A WITHOUT 2 pi
+                (the units of k):  a = (q/hbar) A / RLU,  A in V s/m, RLU = reciprocal_lattice_unit
+                (2 pi 1e10 1/m per 1/A: K = RLU k is the wavevector in 1/m)
+            E : (n_t, 3) electric field, V/m
+        Field.A and Field.E have columns (parallel, perpendicular, axial), along the vectors (p, q, s)
+        of polarization_frame(s_direction)."""
         if self.Field.A.ndim != 2 or self.Field.A.shape[1] != 3:
-            raise ValueError("Field.A y Field.E deben tener 3 columnas (paralela, perp., axial)")
-        p, q, s = polarization_frame(self.Field.s_direction)
+            raise ValueError("Field.A and Field.E must have 3 columns (parallel, perpendicular, axial)")
+        frame = np.array(polarization_frame(self.Field.s_direction))    # rows p, q, s
+        A = self.Field.A @ frame                                         # A_par p + A_perp q + A_ax s
+        E = self.Field.E @ frame
+        a = qe/hbar*A/self.crystal.reciprocal_lattice_unit
+        return a, E
 
-        def to_cartesian(F):                   # F: (n_t, 3) = (paralela, perp., axial)
-            return F[:, 0, None]*p + F[:, 1, None]*q + F[:, 2, None]*s
-
-        # A in lattice units: kappa = k - (q/hbar) A/RLU, with k in 1/A without 2 pi and RLU = 2 pi 1e10 1/m
-        A = to_cartesian(self.Field.A)/self.crystal.reciprocal_lattice_unit
-        E = to_cartesian(self.Field.E)
-        return A[:, 0], A[:, 1], A[:, 2], E[:, 0], E[:, 1], E[:, 2]
-
-    def rk_evolve(self,CB, kx, ky, kz, from_it:int, to_it:int):
-        if to_it>len(self.Field.A[:,0])-1:
-            to_it=len(self.Field.A[:,0])-1
-
-        Ax, Ay, Az, Ex, Ey, Ez = self._field_components()
-
-        P=_phases(kx, ky, kz, self.R)                    # once per call, reused in every time step
-        CB=_rk_evolveCB(CB, P, Ax, Ay, Az, Ex, Ey, Ez, self.Field.dt, self.h_Rnm, self.r_Rnm, self.R, from_it, to_it)
-
-        return CB
+    def rk_evolve(self, CB, kx, ky, kz, from_it:int, to_it:int):
+        P = _phases(kx, ky, kz, self.R)                  # once per call, reused in every time step
+        return _rk_evolveCB(CB, P, self.a, self.E_xyz, self.Field.dt, self.h_Rnm, self.r_Rnm, self.R, from_it, to_it)
 
     def _kappa(self, it):
-        """kappa(t) = k - (qe/hbar) A(t), en el indice de tiempo 'it'."""
-        kx, ky, kz = self.k[:, 0], self.k[:, 1], self.k[:, 2]
-        Ax, Ay, Az, _, _, _ = self._field_components()
-        c_qe__hbar = qe/hbar
-        return kx - c_qe__hbar*Ax[it], ky - c_qe__hbar*Ay[it], kz - c_qe__hbar*Az[it]
+        """kappa(t) = k - a(t) at time index it, in 1/A without 2 pi (components kx, ky, kz)."""
+        kappa = self.k - self.a[it]
+        return kappa[:, 0], kappa[:, 1], kappa[:, 2]
 
     def _velocity_k(self, CB, kxt, kyt, kzt):
         """Velocity of the electron in the state of every k point, shape (n_k, 3), in m/s:
