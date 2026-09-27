@@ -5,7 +5,6 @@ from scipy.constants import hbar, elementary_charge, eV
 import logging
 import time
 from datetime import timedelta
-import warnings
 
 # logging.basicConfig(
 #     filename="graphene_TightBinding.log",
@@ -140,10 +139,12 @@ class TBevolution_Bloch:
         a = np.asarray(self.crystal.direct_vectors, dtype=float)[:dim]
         self.cell_size = np.sqrt(np.linalg.det(a @ a.T))
         self.w = self.dV*self.cell_size                 # dimensionless k weights: sum(w) = 1 for one Brillouin zone
-        n_BZ = self.V*self.cell_size
-        if abs(n_BZ - 1) > 0.1:
-            warnings.warn(f"The k grid covers {n_BZ:.2f} Brillouin zones (sum dV = {self.V:.4g} 1/A^{dim}, "
-                          f"unit cell = {self.cell_size:.4g} A^{dim}): the dipole velocity is multiplied by that factor.")
+        n_BZ = self.w.sum()                             # number of Brillouin zones covered by the k grid
+        if abs(n_BZ - 1) > 0.1:                         # 10 %: discretization of the zone border is ~1-3 %
+            raise ValueError(f"the k grid covers {n_BZ:.2f} Brillouin zones (sum dV = {self.V:.4g} 1/A^{dim}, "
+                             f"unit cell = {self.cell_size:.4g} A^{dim}): the dipole velocity would be multiplied "
+                             f"by that factor. Check the BZ limits and the filter radius against the lattice "
+                             f"constant of the crystal file.")
 
         if self.crystal.grid.ndim == 2:
             if Field.s_direction[0]!= 0 or Field.s_direction[1]!= 0:
