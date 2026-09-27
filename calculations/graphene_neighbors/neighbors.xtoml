@@ -1,0 +1,112 @@
+# =====================================================================================
+# Extended TOML (.xtoml) input for executeTB.py -- quick syntax guide
+# -------------------------------------------------------------------------------------
+#   key = 3.0                         plain TOML value (number, string, bool, list, ...)
+#   key = [0, 0, 1]                   a list is a VALUE (e.g. a vector), NEVER a sweep
+#   key = "python(-np.pi/2)"          Python expression, evaluated when the file is read.
+#                                     Only numpy is available, as `np` (np.pi, np.deg2rad, ...).
+#                                     It cannot use other keys of this file.
+#   key = { sweep = [a, b, c] }       sweep: one calculation per value
+#   key = { sweep = "python(...)" }   sweep over the values of a Python expression
+#                                     (must give a non-empty 1D list/array)
+#   Several sweeps must have the same length; calculation i takes value i of every sweep.
+#   calculation.ID is a prefix: with a sweep, _00, _01, ... is appended automatically.
+#   Keys ending in 'filename': relative to the folder of this file, absolute, or '~/...'.
+#
+# Run (results go next to this file, whatever the current folder; <repo> = path of the repository):
+#   from this folder:
+#     python <repo>/calculations/executeTB.py tilt_config.xtoml                    # generate + run
+#     python <repo>/calculations/executeTB.py tilt_config.xtoml --generate-only    # only runs/*.toml
+#     python <repo>/calculations/executeTB.py tilt_config.xtoml --background       # detached; log in tilt_config.out
+#     python <repo>/calculations/executeTB.py tilt_config.xtoml --overwrite        # delete previous results first
+#   (without --overwrite it refuses to run if runs/ already has results with the same name)
+#   or from <repo>/calculations:
+#     python executeTB.py <path to this folder>/tilt_config.xtoml
+# Output: runs/<crystal.name>_<ID>.toml, .log and _dipole_velocity.txt, plus
+#         runs/<crystal.name>_<ID>_sweep.txt (index -> swept values) when there is a sweep.
+#
+# UNITS used in this file (converted to SI inside the code):
+#   k (BZ limits, filter radius)   1/Angstrom WITHOUT 2 pi (phase exp(2 pi i k.R), R in Angstrom)
+#   intensity                      W/cm^2          wavelength     nm
+#   angles (chi, varphi, theta)    rad             times          optical periods T0 = lambda/c
+# =====================================================================================
+
+# Sweep of the driver tilt chi from 0 to 30 degrees (30 calculations), chi measured from x (= e_par, Gamma-M)
+
+[calculation]
+    ID   = 'borrar'                        # name prefix of the results: <crystal.name>_<ID>_NN
+    type = 'TBevolution_Bloch'           # informative only (executeTB uses evolver.type)
+
+[crystal]
+    name = 'graphene'
+    W90filename = '../Wannier90 data/gr_tb.dat'  # relative to the folder of this file
+                                         # Wannier90 *_tb.dat: hoppings in eV, lattice vectors and positions in Angstrom
+    threshold_hopping = 0.1                # keep the cells R with max|h_R| > threshold * max|h| (fraction; 0 = keep all)
+    a = 2.46                             # Angstrom. INFORMATIVE ONLY: executeTB does not read it; the lattice
+                                         # comes from W90filename. Keep it in sync with the 2.46 written in [BZ]
+    dim = 2                              # dimension of the k grid (1, 2 or 3)
+
+[BZ]
+    # k in 1/Angstrom WITHOUT 2 pi. The square [-0.75/a, 0.75/a]^2 contains the hexagonal Brillouin zone
+    # (|Gamma K| = 2/(3a) = 0.271 1/A < 0.75/a = 0.305 1/A); the filter below keeps only the hexagon.
+    # The code checks sum dV * cell_size ~ 1 (grid = one Brillouin zone) and warns in the log if not.
+    nkx = 500                            # grid spacing dk = 1.5/a/500 = 1.2e-3 1/A; ~1.3e5 points inside the hexagon
+    kx_min = "python(-0.75/2.46)"        # -0.75/a
+    kx_max = "python( 0.75/2.46)"
+    nky = 500
+    ky_min = "python(-0.75/2.46)"
+    ky_max = "python( 0.75/2.46)"
+    nkz = 1
+    kz_min = 0.0
+    kz_max = 0.0
+
+[BZ.filter]
+    type = 'polygonfilter'               # keep only the k points inside a regular polygon
+
+[BZ.filter.args]
+    nsides = 6
+    radius = "python(2/3/2.46)"          # 1/A (without 2 pi): |Gamma K| = 2/(3a), distance to the vertices
+
+[Field]
+    type       = 'PulsedField'
+    field_type = 'E'                     # 'E': the pulse is defined on E and A = -integral E dt (A(t0) = 0);
+                                         # 'A': defined on A and E = -dA/dt  (optional, default 'E')
+    I_W__cm2   = 5e10                    # peak irradiance, W/cm^2 -> E0 = sqrt(2 I/(c eps0)) = 6.1e8 V/m
+                                         # max k shift q A0/(2 pi hbar) = 0.024 1/A (9 % of |Gamma K|)
+    lambda     = 3000                    # nm -> T0 = 10.0 fs, photon energy 0.413 eV
+    varphi     = "python(-np.pi/2)"      # CEP, rad
+    chi        = { sweep = "python(np.deg2rad(np.linspace(0,15,num=2)))" }
+                                         # tilt of the polarization ellipse from e_par = x, rad
+    #chi        = "python(np.deg2rad(0))"
+    ellip      = 0                       # ellipticity eps = +-b/a in [-1, 1]; eps > 0 right-handed; 0 = linear
+    # theta       = 0                    # optional, rad: axial component (default 0)
+    # s_direction = [0, 0, 1]            # optional: propagation direction (must be z for dim = 2)
+
+[Field.env]
+    type = 'env_sin2'                    # sin^2 ramp up, flat top, cos^2 ramp down
+
+[Field.env.args]
+    # fractions of the total duration tmax = tfin - tini (NOT periods, NOT seconds)
+    start = 0                            # start of the pulse
+    end   = 1                            # end of the pulse
+    ton   = 0.5                          # duration of the ramp up
+    toff  = 0.5                          # duration of the ramp down
+                                         # with these values: env = sin^2(pi t/tmax), no flat top
+
+[time]
+    tini = 0                             # optical periods T0
+    tfin = 8                             # optical periods T0 -> 80 fs
+    nt   = 32768                         # RK4 time steps: dt = 8 T0/32768 = T0/4096 = 2.4 as
+
+[evolver]
+    type = 'TBevolution_Bloch'           # evolution in the Bloch (orbital) basis with the full Wannier model
+
+[evolver.calculation]
+    type = 'dipole_velocity'             # output: vd(t) per unit cell, C m/s, in runs/<name>_dipole_velocity.txt
+
+[evolver.calculation.args]
+    nt = 512                             # number of samples of vd written to file; time.nt / nt must be an integer.
+                                         # Highest resolvable harmonic (Nyquist): q_max = nt/(2 (tfin - tini)) = 32.
+                                         # Content at q > q_max is aliased onto 2 q_max - q (e.g. q = 45 -> 19):
+                                         # harmless if the spectrum there is far below the harmonics of interest.
+                                         # Each sample costs one velocity evaluation over the whole k grid.
