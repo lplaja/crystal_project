@@ -147,7 +147,7 @@ def test_oscilaciones_de_Bloch():
     h = np.zeros((3, 1, 1)); h[0] = -t_hop; h[2] = -t_hop     # R = -1, 0, +1
     r = np.zeros((3, 1, 1, 3))
     crystal = crystal_falso(h, r, [[-1, 0, 0], [0, 0, 0], [1, 0, 0]], k=[k0])
-    campo = campo_constante({0: F}, (0, 0, 1), 2001, 1e-17)          # 2 periodos de Bloch
+    campo = campo_constante({0: F}, (0, 0, 1), 2000, 1e-17)          # 2 periodos de Bloch    
     TBev = TBe.TBevolution_Bloch(crystal, campo)
 
     time_dip, vdx, vdy, vdz = TBev.rk_dipole_velocity(npt=40)

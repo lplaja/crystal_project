@@ -3,8 +3,8 @@ Field.py -- polarized laser pulses for the tight-binding time evolution (TBevolu
 
 Convention (lecture slides "La elipse de polarización")
 -------------------------------------------------------
-    E(t) = Re[ A env(t) e_sigma e^{-i(w0 t + varphi)} ]
-    e_sigma = cos(phi) e_par + e^{-i delta_varphi} sin(phi) e_perp
+    E(t) = Re[ A env(t) e_sigma exp(-i(ω₀t + φ)) ]
+    e_sigma = cos(ϕ) e_∥ + exp(-i δφ) sin(ϕ) e_⊥
 
     varphi        absolute phase of the carrier (CEP)
     phi           Jones-vector angle  (A_par = A cos phi, A_perp = A sin phi)

@@ -2,7 +2,8 @@
 test_field_components.py
 
 Tests de polarization_frame y TBevolution_Bloch._field_components / _kappa
-(rotacion de las componentes (paralela, perpendicular, axial) del campo a cartesianas).
+(rotacion de las componentes (paralela, perpendicular, axial) del campo a cartesianas;
+_field_components devuelve a = (q/hbar) A/RLU, en unidades de k, y E en V/m).
 No necesitan cristal ni malla: se llama al metodo con un "self" simulado.
 
 Ejecutar:  pytest -s test_field_components.py     (o python3 test_field_components.py)
@@ -26,6 +27,7 @@ def fake_self(A, E, s, k=None):
     fs = SimpleNamespace(Field=SimpleNamespace(A=A, E=E, s_direction=s),
                          crystal=SimpleNamespace(reciprocal_lattice_unit=RLU), k=k)
     fs._field_components = MethodType(TBe.TBevolution_Bloch._field_components, fs)
+    fs.a, fs.E_xyz = fs._field_components()          # lo que hace __init__
     return fs
 
 
@@ -74,9 +76,9 @@ def test_base_s_paralela_a_x_da_error():
 def test_field_components_caso_defecto_reproduce_lo_anterior():
     rng = np.random.default_rng(1)
     A = rng.normal(size=(50, 3)); E = rng.normal(size=(50, 3))
-    Ax, Ay, Az, Ex, Ey, Ez = fake_self(A, E, [0, 0, 1])._field_components()
-    assert np.allclose(Ax, A[:, 0]/RLU) and np.allclose(Ay, A[:, 1]/RLU) and np.allclose(Az, A[:, 2]/RLU)
-    assert np.allclose(Ex, E[:, 0]) and np.allclose(Ey, E[:, 1]) and np.allclose(Ez, E[:, 2])
+    a, Exyz = fake_self(A, E, [0, 0, 1])._field_components()
+    assert np.allclose(a, qe/hbar*A/RLU)              # s = z: (paralela, perp., axial) = (x, y, z)
+    assert np.allclose(Exyz, E)
 
 
 def test_field_components_conserva_norma_y_no_modifica_el_campo():
@@ -84,9 +86,9 @@ def test_field_components_conserva_norma_y_no_modifica_el_campo():
     for s in s_aleatorias(10, seed=3):
         A = rng.normal(size=(40, 3)); E = rng.normal(size=(40, 3))
         A0, E0 = A.copy(), E.copy()
-        Ax, Ay, Az, Ex, Ey, Ez = fake_self(A, E, s)._field_components()
-        assert np.allclose(Ax**2 + Ay**2 + Az**2, np.sum(A0**2, axis=1)/RLU**2)   # rotacion: |A| igual
-        assert np.allclose(Ex**2 + Ey**2 + Ez**2, np.sum(E0**2, axis=1))
+        a, Exyz = fake_self(A, E, s)._field_components()
+        assert np.allclose(np.sum(a**2, axis=1), np.sum(A0**2, axis=1)*(qe/hbar/RLU)**2)   # rotacion: |A| igual
+        assert np.allclose(np.sum(Exyz**2, axis=1), np.sum(E0**2, axis=1))
         assert np.array_equal(A, A0) and np.array_equal(E, E0), "se ha modificado Field.A o Field.E"
 
 
@@ -106,10 +108,10 @@ def test_kappa_usa_las_mismas_componentes():
     k = rng.normal(size=(5, 3))
     fs = fake_self(A, E, s, k=k)
     kx, ky, kz = TBe.TBevolution_Bloch._kappa(fs, 7)
-    Ax, Ay, Az, *_ = fs._field_components()
-    assert np.allclose(kx, k[:, 0] - qe/hbar*Ax[7])
-    assert np.allclose(ky, k[:, 1] - qe/hbar*Ay[7])
-    assert np.allclose(kz, k[:, 2] - qe/hbar*Az[7])
+    a, _ = fs._field_components()
+    assert np.allclose(kx, k[:, 0] - a[7, 0])
+    assert np.allclose(ky, k[:, 1] - a[7, 1])
+    assert np.allclose(kz, k[:, 2] - a[7, 2])
 
 
 if __name__ == "__main__":

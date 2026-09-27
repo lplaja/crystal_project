@@ -34,14 +34,14 @@
 # Sweep of the driver tilt chi from 0 to 30 degrees (30 calculations), chi measured from x (= e_par, Gamma-M)
 
 [calculation]
-    ID   = 'tilt'                        # name prefix of the results: <crystal.name>_<ID>_NN
+    ID   = 'borrar'                        # name prefix of the results: <crystal.name>_<ID>_NN
     type = 'TBevolution_Bloch'           # informative only (executeTB uses evolver.type)
 
 [crystal]
     name = 'graphene'
-    W90filename = '../Wannier90 data/gr1NN_tb.dat'  # relative to the folder of this file
+    W90filename = '../Wannier90 data/gr_tb.dat'  # relative to the folder of this file
                                          # Wannier90 *_tb.dat: hoppings in eV, lattice vectors and positions in Angstrom
-    threshold_hopping = 0                # keep the cells R with max|h_R| > threshold * max|h| (fraction; 0 = keep all)
+    threshold_hopping = 0.1                # keep the cells R with max|h_R| > threshold * max|h| (fraction; 0 = keep all)
     a = 2.46                             # Angstrom. INFORMATIVE ONLY: executeTB does not read it; the lattice
                                          # comes from W90filename. Keep it in sync with the 2.46 written in [BZ]
     dim = 2                              # dimension of the k grid (1, 2 or 3)
@@ -75,7 +75,7 @@
                                          # max k shift q A0/(2 pi hbar) = 0.024 1/A (9 % of |Gamma K|)
     lambda     = 3000                    # nm -> T0 = 10.0 fs, photon energy 0.413 eV
     varphi     = "python(-np.pi/2)"      # CEP, rad
-    chi        = { sweep = "python(np.deg2rad(np.linspace(0,30,num=30)))" }
+    chi        = { sweep = "python(np.deg2rad(np.linspace(0,15,num=2)))" }
                                          # tilt of the polarization ellipse from e_par = x, rad
     #chi        = "python(np.deg2rad(0))"
     ellip      = 0                       # ellipticity eps = +-b/a in [-1, 1]; eps > 0 right-handed; 0 = linear

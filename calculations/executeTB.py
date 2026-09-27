@@ -51,7 +51,6 @@ filter_type = {
     'polygonfilter': grid.polygonfilter,
 }
 evolution_type = {
-    'TBevolution_CMCP': TBevolution.TBevolution_CMCP,
     'TBevolution_Bloch': TBevolution.TBevolution_Bloch,
 }
 field_type = {
