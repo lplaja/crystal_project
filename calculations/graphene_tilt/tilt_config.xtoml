@@ -61,7 +61,7 @@
     I_W__cm2   = 5e10
     lambda     = 3000                    # nm
     varphi     = "python(-np.pi/2)"      # CEP
-    chi        = { sweep = "python(np.deg2rad(np.linspace(0,30,num=5)))" }
+    chi        = { sweep = "python(np.deg2rad(np.linspace(0,30,num=30)))" }
     #chi        = "python(np.deg2rad(0))"
     ellip      = 0
 
@@ -86,4 +86,7 @@
     type = 'dipole_velocity'
 
 [evolver.calculation.args]
-    nt = 512                             # time.nt / nt must be an integer
+    nt = 2048                             # time.nt / nt must be an integer. 
+                                          # Always choose 4 times more of what you need for the max frec 
+                                          # in the harmonic spectrum. Finite differences understimate de higher frequencies
+                                          # due to the factor sin(ωΔt)/(ωΔt)

@@ -1,5 +1,5 @@
-# GENERATED from tilt_config.xtoml on 2026-09-26 13:56:03 -- do not edit (edit the .xtoml and regenerate)
-# sweep point 2 of 5: Field.chi = 0.2617993877991494
+# GENERATED from tilt_config.xtoml on 2026-09-26 16:51:20 -- do not edit (edit the .xtoml and regenerate)
+# sweep point 2 of 30: Field.chi = 0.03611026038608958
 
 [calculation]
 ID = "tilt_02"
@@ -36,7 +36,7 @@ field_type = "E"
 I_W__cm2 = 50000000000.0
 lambda = 3000
 varphi = -1.5707963267948966
-chi = 0.2617993877991494
+chi = 0.03611026038608958
 ellip = 0
 
 [Field.env]
