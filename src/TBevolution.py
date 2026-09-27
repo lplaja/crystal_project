@@ -248,7 +248,7 @@ class TBevolution_CMCP:
             ky = np.zeros((self.k.shape[0], 1), dtype=np.float64)
             self.k = np.column_stack([self.k, ky, kz])
 
-        self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to eV and apply degeneracy weights
+        self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to J and apply degeneracy weights
 
         self.R=cr.vector_in_cart(self.crystal.R_vectors, self.crystal.direct_vectors) # coordinate of the WZ cell in cartesian
 
@@ -423,8 +423,8 @@ class TBevolution_Bloch:
             ky = np.zeros((self.k.shape[0], 1), dtype=np.float64)
             self.k = np.column_stack([self.k, ky, kz])
 
-        self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to eV and apply degeneracy weights
-        self.r_Rnm=self.crystal.r_Rnm* self.crystal.direct_lattice_unit               # longitud: Å → m
+        self.h_Rnm = self.crystal.h_Rnm * eV / self.crystal.deg_weights[:, None, None] # convert to J and apply degeneracy weights
+        self.r_Rnm=self.crystal.r_Rnm* self.crystal.direct_lattice_unit               # length: Å → m
 
         self.R=cr.vector_in_cart(self.crystal.R_vectors, self.crystal.direct_vectors) # coordinate of the WZ cell in cartesian
 
@@ -470,6 +470,7 @@ class TBevolution_Bloch:
         def to_cartesian(F):                   # F: (n_t, 3) = (paralela, perp., axial)
             return F[:, 0, None]*p + F[:, 1, None]*q + F[:, 2, None]*s
 
+        # A in lattice units: kappa = k - (q/hbar) A/RLU, with k in 1/A without 2 pi and RLU = 2 pi 1e10 1/m
         A = to_cartesian(self.Field.A)/self.crystal.reciprocal_lattice_unit
         E = to_cartesian(self.Field.E)
         return A[:, 0], A[:, 1], A[:, 2], E[:, 0], E[:, 1], E[:, 2]
